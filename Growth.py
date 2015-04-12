@@ -14,4 +14,8 @@ def AdatomSurfaceEnergy(adatom, substrate):
 	Returns the potential energy of the `adatom` due to the `substrate` atoms
 	'''
 
-def AdatomSurface
+def AdatomSurface(adatom,i):
+    '''
+    Returns the potential energy of the 'adatom' due to other 'adatoms'.
+    '''
+    
