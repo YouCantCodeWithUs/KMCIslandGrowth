@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 # Constants
 E_a = 2.0972
 E_s = 2.0972
+# r_a and r_s have to be scaled for the orientation being used?
 r_a = 2.55266
 r_s = 2.55266
 E_as = np.sqrt(E_a*E_s)
@@ -142,6 +143,17 @@ def NearbyBins(Ri):
 			nearby_y[i] -= nbins_y
 	return (nearby_x, nearby_y)
 
+def NearbyAtoms(Ri, R_bins):
+	(nearby_x, nearby_y) = NearbyBins(Ri)
+	nearby_atoms = []
+	for x in nearby_x:
+		for y in nearby_y:
+			try:
+				nearby_atoms += R_bins[x][y]
+			except IndexError:
+				pass # Bins with no atoms are not returned from PutInBins()
+	return nearby_atoms
+
 def PairwisePotential(Ri, Rj, E_ij, r_ij):
 	'''
 	Lennard-Jones potential between two atoms.
@@ -169,14 +181,7 @@ def AdatomSurfaceEnergy(adatom, substrate_bins, E_as, r_as):
 	
 	returns: Float - potential energy of adatom due to substrate atoms
 	'''
-	(nearby_x, nearby_y) = NearbyBins(adatom)
-	nearby_substrate = []
-	for x in nearby_x:
-		for y in nearby_y:
-			try:
-				nearby_substrate += substrate_bins[x][y]
-			except IndexError:
-				pass # Bins with no atoms are not returned from PutInBins()
+	nearby_substrate = NearbyAtoms(adatom, substrate_bins)
 	return sum([PairwisePotential(adatom, Rs, E_as, r_as) for Rs in nearby_substrate])
 
 def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
@@ -194,42 +199,44 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 	# faster for small systems, slower for big systems
 	if len(adatoms) < 1000:
 		return sum([PairwisePotential(Ri, Rj, E_as, r_as) for Rj in adatoms])
-	(nearby_x, nearby_y) = NearbyBins(Ri)
-	adatom_bins = PutInBins(adatoms)
-	nearby_adatoms = []
-	for x in nearby_x:
-		for y in nearby_y:
-			try:
-				nearby_adatoms += adatom_bins[x][y]
-			except IndexError:
-				pass # Bins with no atoms are not returned from PutInBins()
+	nearby_adatoms = NearbyAtoms(Ri, adatoms)
 	return sum([PairwisePotential(Ri, Rj, E_as, r_as) for Rj in nearby_adatoms])
-	
-def SurfaceAtoms(adatoms):
-	surfaceAtoms = []	
+
+def DepositionRate(MLps):
+	return float(W)*MLps
+
+def NearestNeighbors(adatoms):
+	nearest_neighbors = []
+	adatom_bins = PutInBins(adatoms)
 	for Ri in adatoms:
-		(nearby_x, nearby_y) = NearbyBins(Ri)
-		adatom_bins = PutInBins(adatoms)
-		nearby_adatoms = []
-		for x in nearby_x:
-			for y in nearby_y:
-				try:
-					nearby_adatoms += adatom_bins[x][y]
-				except IndexError:
-					pass # Bins with no atoms are not returned from PutInBins()
-		nearest_neighbors = []
+		nearby_adatoms = NearbyAtoms(Ri, adatom_bins)
+		nn_i = []
 		for Rj in nearby_adatoms:
 			d = Displacement(Ri, Rj)
-			if abs(d[0]) < 1.2*r_s and abs(d[1]) < 1.2*r_s:
-				dist = np.sqrt(np.dot(d,d))
-				if dist == 0:
+			if abs(d[0]) < 1.2*r_a and abs(d[1]) < 1.2*r_a:
+				d = np.sqrt(np.dot(d, d))
+				if d == 0:
 					pass
-				elif dist < 1.2*r_s:
-					print Ri, Rj, dist
-					nearest_neighbors.append(Rj)
-		if(len(nearest_neighbors) < 5):
-			surfaceAtoms.append(Ri)
-	return surfaceAtoms			
+				elif d < 1.2*r_a:
+					nn_i.append(Rj)
+		nearest_neighbors.append(nn_i)
+	return nearest_neighbors
+
+def SurfaceAtoms(adatoms):
+	'''
+	Identifies surface adatoms. 
+	Surface atoms are defined as adatoms coordinated by < 5 other atoms.
+	adatoms: np.array(np.array[x, y]) - position of adatom
+	
+	returns: List[np.array[x, y]] - list of positions of surface adatoms.
+	'''
+	surfaceAtoms = []
+	nearest_neighbors = NearestNeighbors(adatoms)
+	for i in range(len(nearest_neighbors)):
+		if len(nearest_neighbors[i]) < 5:
+			surfaceAtoms.append(adatoms[i])
+	# Filter out adatom-substrate interface
+	return surfaceAtoms
 
 def PlotSubstrate(substrate, color='blue'):
 	for a in substrate:
@@ -238,9 +245,14 @@ def PlotSubstrate(substrate, color='blue'):
 		plt.plot([x*bin_size - L/2, x*bin_size - L/2], [Dmin, nbins_y*bin_size + Dmin], color='red')
 	for y in range(nbins_y + 1):
 		plt.plot([-L/2, (nbins_x + 1)*bin_size - L/2], [y*bin_size + Dmin, y*bin_size + Dmin], color='red')
-	plt.show()
+	# plt.show()
 
 substrate = InitSubstrate(W, Hs, r_s)
+substrate_bins = PutInBins(substrate)
+PlotSubstrate(substrate)
+surf = SurfaceAtoms(substrate)
+PlotSubstrate(surf, 'red')
+plt.show()
 
 # minimum energy position
 # xs = np.linspace(0, L, 500)
