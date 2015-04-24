@@ -24,8 +24,8 @@ Dmin = -(Hs)*r_s*sqrt3/2
 Dmax = Ha*r_s
 D = Dmax-Dmin
 bin_size = 3*r_s
-nbins_x = int(L/bin_size)
-nbins_y = int(D/bin_size)
+nbins_x = int(np.ceil(L/bin_size))
+nbins_y = int(np.ceil(D/bin_size))
 
 def InitSubstrate(w, h, r_s):
 	'''
@@ -204,10 +204,36 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 			except IndexError:
 				pass # Bins with no atoms are not returned from PutInBins()
 	return sum([PairwisePotential(Ri, Rj, E_as, r_as) for Rj in nearby_adatoms])
+	
+def SurfaceAtoms(adatoms):
+	surfaceAtoms = []	
+	for Ri in adatoms:
+		(nearby_x, nearby_y) = NearbyBins(Ri)
+		adatom_bins = PutInBins(adatoms)
+		nearby_adatoms = []
+		for x in nearby_x:
+			for y in nearby_y:
+				try:
+					nearby_adatoms += adatom_bins[x][y]
+				except IndexError:
+					pass # Bins with no atoms are not returned from PutInBins()
+		nearest_neighbors = []
+		for Rj in nearby_adatoms:
+			d = Displacement(Ri, Rj)
+			if abs(d[0]) < 1.2*r_s and abs(d[1]) < 1.2*r_s:
+				dist = np.sqrt(np.dot(d,d))
+				if dist == 0:
+					pass
+				elif dist < 1.2*r_s:
+					print Ri, Rj, dist
+					nearest_neighbors.append(Rj)
+		if(len(nearest_neighbors) < 5):
+			surfaceAtoms.append(Ri)
+	return surfaceAtoms			
 
-def PlotSubstrate(substrate):
+def PlotSubstrate(substrate, color='blue'):
 	for a in substrate:
-		plt.scatter(a[0], a[1], color='blue')
+		plt.scatter(a[0], a[1], color=color)
 	for x in range(nbins_x + 2):
 		plt.plot([x*bin_size - L/2, x*bin_size - L/2], [Dmin, nbins_y*bin_size + Dmin], color='red')
 	for y in range(nbins_y + 1):
@@ -215,7 +241,6 @@ def PlotSubstrate(substrate):
 	plt.show()
 
 substrate = InitSubstrate(W, Hs, r_s)
-substrate_bins = PutInBins(substrate)
 
 # minimum energy position
 # xs = np.linspace(0, L, 500)
