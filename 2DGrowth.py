@@ -170,6 +170,14 @@ def PairwisePotential(Ri, Rj, E_ij, r_ij):
 		return 0
 	return 4*E_ij*((r_ij/r)**12 - (r_ij/r)**6)
 
+def PairwiseForce(Ri, Rj, E_ij, r_ij):
+	r_vec = Displacement(Ri, Rj)
+	r_mag = np.sqrt(np.dot(r_vec, r_vec))
+	if r_mag == 0:
+		return np.zeros(3)
+	f = 4*E_ij*(-12*r_ij**12/r_mag**13 + 6*r_ij**6/r_mag**7)
+	return r_vec/r_mag*f
+
 def AdatomSurfaceEnergy(adatom, substrate_bins, E_as, r_as):
 	'''
 	Lennard-Jones potential between an adatom and the substrate atoms.
@@ -198,9 +206,20 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 	Ri = adatoms[i]
 	# faster for small systems, slower for big systems
 	if len(adatoms) < 1000:
-		return sum([PairwisePotential(Ri, Rj, E_as, r_as) for Rj in adatoms])
+		return sum([PairwisePotential(Ri, Rj, E_a, r_a) for Rj in adatoms])
 	nearby_adatoms = NearbyAtoms(Ri, adatoms)
-	return sum([PairwisePotential(Ri, Rj, E_as, r_as) for Rj in nearby_adatoms])
+	return sum([PairwisePotential(Ri, Rj, E_a, r_a) for Rj in nearby_adatoms])
+
+def AdatomSurfaceForce(adatom, substrate_bins, E_as, r_as):
+	nearby_substrate = NearbyAtoms(adatom, substrate_bins)
+	return sum([PairwiseForce(adatom, Rs, E_as, r_as) for Rs in nearby_substrate])
+
+def AdatomAdatomForce(i, adatoms, E_a, r_a):
+	Ri = adatoms[i]
+	if len(adatoms) < 1000:
+		return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in adatoms])
+	nearby_adatoms = NearbyAtoms(Ri, adatoms)
+	return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in nearby_adatoms])
 
 def DepositionRate(MLps):
 	return float(W)*MLps
@@ -252,7 +271,8 @@ substrate_bins = PutInBins(substrate)
 PlotSubstrate(substrate)
 surf = SurfaceAtoms(substrate)
 PlotSubstrate(surf, 'red')
-plt.show()
+# plt.show()
+plt.clf()
 
 # minimum energy position
 # xs = np.linspace(0, L, 500)
@@ -269,5 +289,6 @@ plt.show()
 # ymin = ys[Es.index(min(Es))]
 # print xmin/r_as, ymin/r_as
 # print AdatomSurfaceEnergy(np.array([xmin, ymin]), substrate_bins, E_as, r_as)
+# print AdatomSurfaceForce(np.array([xmin, ymin]), substrate_bins, E_as, r_as)
 # plt.plot(ys, Es)
 # plt.show()
