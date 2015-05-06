@@ -31,6 +31,9 @@ def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	f = 4*E_ij*(-12*r_ij**12/r_mag**13 + 6*r_ij**6/r_mag**7)
 	return r_vec/r_mag*f
 
+def AdatomSurfaceSubsetEnergy(adatom, substrate_subset, E_as, r_as):
+	return sum([PairwisePotential(adatom, Rs, E_as, r_as) for Rs in substrate_subset])
+
 def AdatomSurfaceEnergy(adatom, substrate_bins, E_as, r_as):
 	'''
 	Lennard-Jones potential between an adatom and the substrate atoms.
@@ -43,7 +46,7 @@ def AdatomSurfaceEnergy(adatom, substrate_bins, E_as, r_as):
 	returns: Float - potential energy of adatom due to substrate atoms
 	'''
 	nearby_substrate = Bins.NearbyAtoms(adatom, substrate_bins)
-	return sum([PairwisePotential(adatom, Rs, E_as, r_as) for Rs in nearby_substrate])
+	return AdatomSurfaceSubsetEnergy(adatom, nearby_substrate, E_as, r_as)
 
 def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 	'''
@@ -73,3 +76,15 @@ def AdatomAdatomForce(i, adatoms, E_a, r_a):
 		return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in adatoms])
 	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
 	return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in nearby_adatoms])
+
+def U_appx(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
+	Ri = adatoms[i]
+	Uappx = AdatomSurfaceEnergy(Ri, substrate_bins, E_as, r_as) + AdatomAdatomEnergy(i, adatoms, E_a, r_a)
+	return Uappx
+
+def U_loc(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
+	Ri = adatoms[i]
+	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_a)
+	nearest_adatoms = nearest_adatoms[i]
+	nearest_substrate = nearest_substrate[i]
+	return AdatomAdatomEnergy(0, [Ri] + nearest_adatoms, E_a, r_a) + AdatomSurfaceSubsetEnergy(Ri, nearest_substrate, E_as, r_as)

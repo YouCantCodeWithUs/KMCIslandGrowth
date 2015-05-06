@@ -75,18 +75,28 @@ def NearbyAtoms(Ri, R_bins):
 	return nearby_atoms
 
 def NearestNeighbors(adatoms, substrate_bins, r_a):
-	nearest_neighbors = []
+	'''
+	
+	'''
+	nearest_adatoms, nearest_substrate = [], []
 	adatom_bins = PutInBins(adatoms)
 	for Ri in adatoms:
-		nearby_atoms = NearbyAtoms(Ri, adatom_bins) + NearbyAtoms(Ri, substrate_bins)
-		nn_i = []
-		for Rj in nearby_atoms:
+		nearby_adatoms = NearbyAtoms(Ri, adatom_bins)
+		nearby_substrate = NearbyAtoms(Ri, substrate_bins)
+		na_i, ns_i = [], []
+		for Rj in nearby_adatoms:
 			d = Periodic.Displacement(Ri, Rj)
 			if abs(d[0]) < 1.2*r_a and abs(d[1]) < 1.2*r_a:
 				d = np.sqrt(np.dot(d, d))
 				if d == 0:
 					pass
 				elif d < 1.2*r_a:
-					nn_i.append(Rj)
-		nearest_neighbors.append(nn_i)
-	return nearest_neighbors
+					na_i.append(Rj)
+		nearest_adatoms.append(na_i)
+		for Rj in nearby_substrate:
+			d = Periodic.Displacement(Ri, Rj)
+			if abs(d[0]) < 1.2*r_a and abs(d[1]) < 1.2*r_a:
+				d = np.sqrt(np.dot(d, d))
+				ns_i.append(Rj)
+		nearest_substrate.append(ns_i)
+	return (nearest_adatoms, nearest_substrate)
