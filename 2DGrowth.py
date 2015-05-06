@@ -44,9 +44,9 @@ def SurfaceAtoms(adatoms, substrate_bins, r_a):
 	returns: List[np.array[x, y]] - list of positions of surface adatoms.
 	'''
 	surfaceAtoms = []
-	nearest_neighbors = Bins.NearestNeighbors(adatoms, substrate_bins, r_a)
-	for i in range(len(nearest_neighbors)):
-		if len(nearest_neighbors[i]) < 5:
+	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_a)
+	for i in range(len(adatoms)):
+		if len(nearest_adatoms[i]) + len(nearest_substrate[i]) < 5:
 			surfaceAtoms.append(adatoms[i])
 	# Filter out adatom-substrate interface
 	return surfaceAtoms
@@ -79,11 +79,14 @@ substrate_bins = Bins.PutInBins(substrate)
 adatoms = []
 adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
 
-PlotSubstrate(substrate)
-surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_a)
-PlotSubstrate(surf, 'red')
-plt.show()
-plt.clf()
+# print Energy.U_loc(0, adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a)
+# print Energy.U_appx(0, adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a)
+
+# PlotSubstrate(substrate)
+# surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_a)
+# PlotSubstrate(surf, 'red')
+# plt.show()
+# plt.clf()
 
 # minimum energy position
 # xs = np.linspace(0, gv.L, 500)
