@@ -60,7 +60,7 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 	# faster for small systems, slower for big systems
 	if len(adatoms) < 1000:
 		return sum([PairwisePotential(Ri, Rj, E_a, r_a) for Rj in adatoms])
-	nearby_adatoms = NearbyAtoms(Ri, adatoms)
+	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
 	return sum([PairwisePotential(Ri, Rj, E_a, r_a) for Rj in nearby_adatoms])
 
 def AdatomSurfaceForce(adatom, substrate_bins, E_as, r_as):
@@ -71,5 +71,5 @@ def AdatomAdatomForce(i, adatoms, E_a, r_a):
 	Ri = adatoms[i]
 	if len(adatoms) < 1000:
 		return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in adatoms])
-	nearby_adatoms = NearbyAtoms(Ri, adatoms)
+	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
 	return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in nearby_adatoms])
