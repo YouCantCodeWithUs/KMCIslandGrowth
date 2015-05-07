@@ -35,7 +35,7 @@ def InitSubstrate(w, h, r_s):
 def DepositionRate(MLps):
 	return float(gv.W)*MLps
 
-def SurfaceAtoms(adatoms, substrate_bins, r_a):
+def SurfaceAtoms(adatoms, substrate_bins, r_as, r_a):
 	'''
 	Identifies surface adatoms. 
 	Surface atoms are defined as adatoms coordinated by < 5 other atoms.
@@ -44,22 +44,48 @@ def SurfaceAtoms(adatoms, substrate_bins, r_a):
 	returns: List[np.array[x, y]] - list of positions of surface adatoms.
 	'''
 	surfaceAtoms = []
-	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_a)
+	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_as, r_a)
 	for i in range(len(adatoms)):
 		if len(nearest_adatoms[i]) + len(nearest_substrate[i]) < 5:
 			surfaceAtoms.append(adatoms[i])
 	# Filter out adatom-substrate interface
 	return surfaceAtoms
 
-def DepositAdatom(adatoms, substrate_bins, r_as):
+def DepositAdatom(adatoms, substrate_bins, E_as, r_as, E_a, r_a):
 	'''
 	adatoms: np.array(np.array[x, y]) - position of adatoms
 	
 	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
 	'''
-	new_adatom = np.array(Periodic.PutInBox(np.array([random.random()*gv.L, 1.0*r_as])))
-	# relax adatom
+	min_height = 0
+	if len(adatoms) > 0:
+		min_height = min([a[1] for a in adatoms])
+	new_adatom = np.array(Periodic.PutInBox(np.array([random.random()*gv.L, 1.5*r_as + min_height])))
+	i = len(adatoms)
 	adatoms.append(new_adatom)
+	adatoms = RelaxAdatom(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)
+	return adatoms
+
+def RelaxAdatom(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
+	F = np.array([1, 1])
+	e = 0
+	# ri = adatoms[i]
+	# positions = []
+	while np.dot(F, F) > 1e-4:
+		# positions.append(adatoms[i])
+		F = Energy.AdatomAdatomForce(i, adatoms, E_a, r_a) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins, E_as, r_as)
+		xs = [adatoms[i] + F*j/10/1.1**e for j in range(10)]
+		ys = [Energy.ArbitraryAdatomEnergy(x, adatoms[:i], E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
+		relaxed_pos = xs[ys.index(min(ys))]
+		adatoms[i] = relaxed_pos
+		e += 1
+		if e > 30:
+			# print e
+			e = 5
+	# print e
+	# plt.scatter([p[0] for p in positions], [p[1] for p in positions])
+	# plt.plot([p[0] for p in positions], [p[1] for p in positions])
+	# plt.savefig('falling.png')
 	return adatoms
 
 def HoppingRates(adatoms, substrate_bins, E_as, r_as, E_a, r_a, betaK):
@@ -85,26 +111,27 @@ substrate = InitSubstrate(gv.W, gv.Hs, gv.r_s)
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
-adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
+for i in range(1):
+	adatoms = DepositAdatom(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a)
 
-Rk = HoppingRates(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a, gv.beta/gv.boltzmann)
-pj = HoppingPartialSums(Rk)
-Rd = DepositionRate(gv.deposition_rate)
-Rtot = TotalRate(Rd, Rk)
-r = random.random()*Rtot
-HoppingAtom = [p for p in pj if p > r]
-if len(HoppingAtom) > 0:
-	# hop atom
-	print 'HOP'
-else:
-	adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
-print adatoms
+# Rk = HoppingRates(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a, gv.beta/gv.boltzmann)
+# pj = HoppingPartialSums(Rk)
+# Rd = DepositionRate(gv.deposition_rate)
+# Rtot = TotalRate(Rd, Rk)
+# r = random.random()*Rtot
+# HoppingAtom = [p for p in pj if p > r]
+# if len(HoppingAtom) > 0:
+# 	# hop atom
+# 	print 'HOP'
+# else:
+# 	adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
+# print adatoms
 
-# PlotSubstrate(substrate)
-# surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_a)
-# PlotSubstrate(surf, 'red')
-# plt.show()
-# plt.clf()
+PlotSubstrate(substrate)
+surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_as, gv.r_a)
+PlotSubstrate(surf, 'red')
+plt.show()
+plt.clf()
 
 # minimum energy position
 # xs = np.linspace(0, gv.L, 500)

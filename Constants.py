@@ -18,7 +18,7 @@ sqrt3 = np.sqrt(3)
 # Box Parameters
 W = 18
 Hs = 10
-Ha = 10
+Ha = 20
 L = W*r_s
 Dmin = -(Hs)*r_s*sqrt3/2
 Dmax = Ha*r_s

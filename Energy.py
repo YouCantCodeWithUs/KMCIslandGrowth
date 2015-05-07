@@ -27,7 +27,7 @@ def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	r_vec = Periodic.Displacement(Ri, Rj)
 	r_mag = np.sqrt(np.dot(r_vec, r_vec))
 	if r_mag == 0:
-		return np.zeros(3)
+		return np.zeros(2)
 	f = 4*E_ij*(-12*r_ij**12/r_mag**13 + 6*r_ij**6/r_mag**7)
 	return r_vec/r_mag*f
 
@@ -60,6 +60,9 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 	returns: Float - potential energy of an adatom due to other adatoms
 	'''
 	Ri = adatoms[i]
+	return ArbitraryAdatomEnergy(Ri, adatoms, E_a, r_a)
+
+def ArbitraryAdatomEnergy(Ri, adatoms, E_a, r_a):
 	# faster for small systems, slower for big systems
 	if len(adatoms) < 1000:
 		return sum([PairwisePotential(Ri, Rj, E_a, r_a) for Rj in adatoms])
@@ -68,10 +71,16 @@ def AdatomAdatomEnergy(i, adatoms, E_a, r_a):
 
 def AdatomSurfaceForce(adatom, substrate_bins, E_as, r_as):
 	nearby_substrate = Bins.NearbyAtoms(adatom, substrate_bins)
-	return sum([PairwiseForce(adatom, Rs, E_as, r_as) for Rs in nearby_substrate])
+	return AdatomSurfaceSubsetForce(adatom, nearby_substrate, E_as, r_as)
+
+def AdatomSurfaceSubsetForce(adatom, substrate_subset, E_as, r_as):
+	return sum([PairwiseForce(adatom, Rs, E_as, r_as) for Rs in substrate_subset])
 
 def AdatomAdatomForce(i, adatoms, E_a, r_a):
 	Ri = adatoms[i]
+	return ArbitraryAdatomForce(Ri, adatoms, E_a, r_a)
+
+def ArbitraryAdatomForce(Ri, adatoms, E_a, r_a):
 	if len(adatoms) < 1000:
 		return sum([PairwiseForce(Ri, Rj, E_a, r_a) for Rj in adatoms])
 	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
