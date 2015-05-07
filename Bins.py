@@ -75,9 +75,6 @@ def NearbyAtoms(Ri, R_bins):
 	return nearby_atoms
 
 def NearestNeighbors(adatoms, substrate_bins, r_as, r_a):
-	'''
-	
-	'''
 	nearest_adatoms, nearest_substrate = [], []
 	adatom_bins = PutInBins(adatoms)
 	for Ri in adatoms:
