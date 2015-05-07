@@ -84,7 +84,23 @@ def U_appx(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
 
 def U_loc(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
 	Ri = adatoms[i]
-	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_a)
+	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_as, r_a)
 	nearest_adatoms = nearest_adatoms[i]
 	nearest_substrate = nearest_substrate[i]
 	return AdatomAdatomEnergy(0, [Ri] + nearest_adatoms, E_a, r_a) + AdatomSurfaceSubsetEnergy(Ri, nearest_substrate, E_as, r_as)
+
+def U_loc_ideal(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
+	Ri = adatoms[i]
+	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins, r_as, r_a)
+	nearest_adatoms = nearest_adatoms[i]
+	nearest_substrate = nearest_substrate[i]
+	return -(len(nearest_adatoms) + len(nearest_substrate))*E_as
+
+def C():
+	return 1.0
+
+def DeltaU(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a):
+	dU_appx = U_appx(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)
+	dU_loc = U_loc(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)
+	dU_loc_ideal = U_loc_ideal(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)
+	return C()*(dU_loc - dU_loc_ideal) + dU_appx

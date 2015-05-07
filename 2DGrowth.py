@@ -33,7 +33,7 @@ def InitSubstrate(w, h, r_s):
 	return np.array(R)
 
 def DepositionRate(MLps):
-	return float(W)*MLps
+	return float(gv.W)*MLps
 
 def SurfaceAtoms(adatoms, substrate_bins, r_a):
 	'''
@@ -57,12 +57,20 @@ def DepositAdatom(adatoms, substrate_bins, r_as):
 	
 	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
 	'''
-	new_adatom = Periodic.PutInBox(np.array([random.random()*gv.L, 1.5*r_as]))
-	
-	
-	
+	new_adatom = np.array(Periodic.PutInBox(np.array([random.random()*gv.L, 1.0*r_as])))
+	# relax adatom
 	adatoms.append(new_adatom)
-	return np.array(adatoms)
+	return adatoms
+
+def HoppingRates(adatoms, substrate_bins, E_as, r_as, E_a, r_a, betaK):
+	omega = 1.0#e12
+	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)*betaK) for i in range(len(adatoms))]
+
+def HoppingPartialSums(Rk):
+	return [sum(Rk[:i+1]) for i in range(len(Rk))]
+
+def TotalRate(Rd, Rk):
+	return Rd + sum(Rk)
 
 def PlotSubstrate(substrate, color='blue'):
 	for a in substrate:
@@ -79,8 +87,18 @@ substrate_bins = Bins.PutInBins(substrate)
 adatoms = []
 adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
 
-# print Energy.U_loc(0, adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a)
-# print Energy.U_appx(0, adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a)
+Rk = HoppingRates(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a, gv.beta/gv.boltzmann)
+pj = HoppingPartialSums(Rk)
+Rd = DepositionRate(gv.deposition_rate)
+Rtot = TotalRate(Rd, Rk)
+r = random.random()*Rtot
+HoppingAtom = [p for p in pj if p > r]
+if len(HoppingAtom) > 0:
+	# hop atom
+	print 'HOP'
+else:
+	adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
+print adatoms
 
 # PlotSubstrate(substrate)
 # surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_a)
