@@ -4,9 +4,11 @@
 import numpy as np
 
 # Constants
-E_a = 2.0972
-E_s = 2.0972
-# r_a and r_s have to be scaled for the orientation being used?
+E_a = 2.0972 # eV
+E_s = 2.0972 # eV
+# r_a and r_s have to be scaled for the orientation being used? also, not the lattice parameters.
+# should be divided by sqrt2
+# also don't use this for sigma. use r_m formula on wiki.
 r_a = 2.55266
 r_s = 2.55266
 E_as = np.sqrt(E_a*E_s)
@@ -24,3 +26,8 @@ D = Dmax-Dmin
 bin_size = 3*r_s
 nbins_x = int(np.ceil(L/bin_size))
 nbins_y = int(np.ceil(D/bin_size))
+
+# Environmental Parameters
+beta = 1.0/100 # 1/K
+boltzmann = 1.0 #8.617e-5 #eV/K
+deposition_rate = 1.0

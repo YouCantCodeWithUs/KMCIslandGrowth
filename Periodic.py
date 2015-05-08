@@ -17,7 +17,7 @@ def PutInBox(Ri):
 	x = Ri[0] % gv.L
 	if abs(x) > gv.L/2:
 		x += gv.L if gv.L < 0 else -gv.L
-	return [x, Ri[1]]
+	return np.array([x, Ri[1]])
 
 def Displacement(Ri, Rj):
 	'''
