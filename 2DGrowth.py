@@ -76,22 +76,40 @@ def DepositAdatom(adatoms, substrate_bins):
 				closeby = True
 		if not closeby:
 			Ri -= np.array([0, gv.r_a])
+	i = len(adatoms)
 	adatoms.append(Ri)
-	adatoms = RelaxAdatoms(adatoms, substrate_bins)
+	adatoms = RelaxAdatoms(adatoms, substrate_bins, i)
 	return adatoms
 
-def RelaxAdatoms(adatoms, substrate_bins):
+def RelaxAdatoms(adatoms, substrate_bins, i = None):
 	N = len(adatoms)
+	nearby_indices = []
+	relaxing_adatoms = []
+	if i != None:
+		adatom_bins = Bins.PutInBins(adatoms)
+		nearby_adatoms = Bins.NearbyAtoms(adatoms[i], adatom_bins)
+		truth = zip(*[iter(np.in1d(adatoms, nearby_adatoms))]*2)
+		truth = [True if t == (True, True) else False for t in truth]
+		nearby_indices = []
+		for i in range(N):
+			if truth[i]:
+				nearby_indices.append(i)
+		nearby_indices = sorted(nearby_indices, reverse=True)
+		for i in nearby_indices:
+			relaxing_adatoms.append(adatoms.pop(i))
+	else:
+		relaxing_adatoms = adatoms[:]
 	p = Pool(4)
-	dx0 = [Energy.AdatomAdatomForce(i, adatoms) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins) for i in range(N)]
-	xn = adatoms[:]
+	xn = relaxing_adatoms[:]
+	N = len(xn)
 	xnp = []
+	dx0 = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
 	# pos = [xn[N-1]]
 	# Conjugate Gradient
 	for i in range(N):
-		other_adatoms = adatoms[:]
+		other_adatoms = xn[:]
 		other_adatoms.pop(i)
-		xs = [(adatoms[i] + a*dx0[i]/100, other_adatoms, substrate_bins) for a in range(100)]
+		xs = [(xn[i] + a*dx0[i]/100, other_adatoms, substrate_bins) for a in range(100)]
 		ys = p.map(Energy.RelaxEnergy, xs)
 		# ys = [Energy.ArbitraryAdatomEnergy(x, other_adatoms, E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
 		(xmin, a, a) = xs[ys.index(min(ys))]
@@ -129,12 +147,12 @@ def RelaxAdatoms(adatoms, substrate_bins):
 		# pos.append(xn[N-1])
 		dxnp = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
 		maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
-		print maxF
+		# print maxF
 	# xs = [p[0] for p in pos]
 	# ys = [p[1] for p in pos]
 	# plt.plot(xs, ys)
 	# plt.show()
-	return xn
+	return adatoms + xn
 
 def HoppingRates(adatoms, substrate_bins):
 	omega = 1.0#e12
@@ -164,15 +182,17 @@ substrate = InitSubstrate(gv.W, gv.Hs, gv.r_s)
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
-for i in range(10):
+for i in range(50):
+	print i
 	adatoms = DepositAdatom(adatoms, substrate_bins)
-	print adatoms
-	PlotSubstrate(substrate, 'blue')
-	PlotAtoms(adatoms, 'green')
-	surf = SurfaceAtoms(adatoms, substrate_bins)
-	PlotAtoms(surf, 'red')
-	plt.show()
-	plt.clf()
+	if i % 5 == 0:
+		PlotSubstrate(substrate, 'blue')
+		PlotAtoms(adatoms, 'green')
+		surf = SurfaceAtoms(adatoms, substrate_bins)
+		PlotAtoms(surf, 'red')
+		plt.savefig('%2i.png'%i)
+		# plt.show()
+		plt.clf()
 
 # Rk = HoppingRates(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a, gv.beta/gv.boltzmann)
 # pj = HoppingPartialSums(Rk)
