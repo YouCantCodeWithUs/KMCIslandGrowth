@@ -61,7 +61,7 @@ def AdatomAdatomEnergy(i, adatoms):
 	returns: Float - potential energy of an adatom due to other adatoms
 	'''
 	Ri = adatoms[i]
-	return ArbitraryAdatomEnergy(Ri, adatoms, gv.E_a, gv.r_a)
+	return ArbitraryAdatomEnergy(Ri, adatoms)
 
 def ArbitraryAdatomEnergy(Ri, adatoms):
 	# faster for small systems, slower for big systems
