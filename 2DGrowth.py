@@ -12,7 +12,7 @@ import Periodic
 import Bins
 import Energy
 
-def InitSubstrate(w, h, r_s):
+def InitSubstrate():
 	'''
 	Initialize substrate atom positions in a hexagonal grid below y = 0
 	
@@ -23,11 +23,11 @@ def InitSubstrate(w, h, r_s):
 	returns: np.array(np.array[x, y]) - list of substrate atom positions
 	'''
 	R = []
-	roffset = np.array([r_s/2, 0])
-	for i in range(h):
-		y = -i*r_s*gv.sqrt3/2
-		for x in range(w):
-			Ri = np.array([x*r_s, y])
+	roffset = np.array([gv.r_s/2, 0])
+	for i in range(gv.Hs):
+		y = -i*gv.r_s*gv.sqrt3/2
+		for x in range(gv.W):
+			Ri = np.array([x*gv.r_s, y])
 			if i%2 == 1:
 				Ri += roffset
 			R.append(Periodic.PutInBox(Ri))
@@ -181,10 +181,15 @@ def RelaxAdatoms(adatoms, substrate_bins, around=None):
 	return adatoms
 
 def HoppingRates(adatoms, substrate_bins):
-	omega = 1.0#e12
-	surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_as, gv.r_a)
-	indexes = [adatoms.index(s) for s in surf]
-	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)*betaK) for i in indexes]
+	omega = 1.0e0
+	surf = SurfaceAtoms(adatoms, substrate_bins)
+	truth = zip(*[iter(np.in1d(adatoms, surf))]*2)
+	truth = [True if t == (True, True) else False for t in truth]
+	surf_indices = []
+	for i in range(len(surf)):
+		if truth[i]:
+			surf_indices.append(i)
+	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins)*gv.beta/gv.boltzmann) for i in surf_indices]
 
 def HoppingPartialSums(Rk):
 	return [sum(Rk[:i+1]) for i in range(len(Rk))]
