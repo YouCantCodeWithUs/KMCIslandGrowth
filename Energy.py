@@ -25,6 +25,16 @@ def PairwisePotential(Ri, Rj, E_ij, r_ij):
 	return E_ij*((r_ij/r)**12 - 2*(r_ij/r)**6)
 
 def PairwiseForce(Ri, Rj, E_ij, r_ij):
+	'''
+	Lennard-Jones force between two atoms.
+	
+	Ri:   np.array[x, y] - position of first atom
+	Rj:   np.array[x, y] - position of second atom
+	E_ij: Float          - binding energy between Ri and Rj
+	r_ij: Float          - equilibrium bond length between Ri and Rj
+	
+	returns: np.array[x, y] - force on Ri due to Rj (will return 0 if Ri == Rj)
+	'''
 	r_vec = Periodic.Displacement(Ri, Rj)
 	r_mag = np.sqrt(np.dot(r_vec, r_vec))
 	if r_mag == 0:
@@ -33,6 +43,9 @@ def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	return r_vec/r_mag*f
 
 def AdatomSurfaceSubsetEnergy(adatom, substrate_subset):
+	'''
+	Modular code! I think this is used somewhere other than AdatomSurfaceEnergy() for something. Maybe.
+	'''
 	return sum([PairwisePotential(adatom, Rs, gv.E_as, gv.r_as) for Rs in substrate_subset])
 
 def AdatomSurfaceEnergy(adatom, substrate_bins):
@@ -64,6 +77,9 @@ def AdatomAdatomEnergy(i, adatoms):
 	return ArbitraryAdatomEnergy(Ri, adatoms)
 
 def ArbitraryAdatomEnergy(Ri, adatoms):
+	'''
+	Required for finding lowest energy position along force vectors.
+	'''
 	# faster for small systems, slower for big systems
 	if len(adatoms) < 1000:
 		return sum([PairwisePotential(Ri, Rj, gv.E_a, gv.r_a) for Rj in adatoms])
@@ -71,6 +87,9 @@ def ArbitraryAdatomEnergy(Ri, adatoms):
 	return sum([PairwisePotential(Ri, Rj, gv.E_a, gv.r_a) for Rj in nearby_adatoms])
 
 def TotalEnergy(adatoms, substrate_bins):
+	'''
+	Used to compare potentially relaxed states to the unrelaxed state.
+	'''
 	U = 0
 	for i in range(len(adatoms)-2):
 		Ri = adatoms[i]
@@ -82,10 +101,20 @@ def TotalEnergy(adatoms, substrate_bins):
 	return U
 
 def RelaxEnergy(args):
+	'''
+	Function required for multiprocessing during relaxation.
+	
+	args: (np.array[x, y], list(np.array[x, y], list(list(np.array[x, y])))) - (proposed relaxed position, position of other adatoms, substrate bins)
+	
+	returns: float - energy at the proposed relaxed position
+	'''
 	(x, other_adatoms, substrate_bins) = args
 	return ArbitraryAdatomEnergy(x, other_adatoms) + AdatomSurfaceEnergy(x, substrate_bins)
 
 def AdatomSurfaceForce(adatom, substrate_bins):
+	'''
+	Force between an adatom and the substrate.
+	'''
 	nearby_substrate = Bins.NearbyAtoms(adatom, substrate_bins)
 	return AdatomSurfaceSubsetForce(adatom, nearby_substrate)
 
@@ -103,11 +132,17 @@ def ArbitraryAdatomForce(Ri, adatoms):
 	return sum([PairwiseForce(Ri, Rj, gv.E_a, gv.r_a) for Rj in nearby_adatoms])
 
 def U_appx(i, adatoms, substrate_bins):
+	'''
+	Energy required to remove an adatom.
+	'''
 	Ri = adatoms[i]
 	Uappx = AdatomSurfaceEnergy(Ri, substrate_bins) + AdatomAdatomEnergy(i, adatoms)
 	return Uappx
 
 def U_loc(i, adatoms, substrate_bins):
+	'''
+	Energy of an adatom's nearest neighbor bonds in situ.
+	'''
 	Ri = adatoms[i]
 	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins)
 	nearest_adatoms = nearest_adatoms[i]
@@ -115,16 +150,25 @@ def U_loc(i, adatoms, substrate_bins):
 	return AdatomAdatomEnergy(0, [Ri] + nearest_adatoms) + AdatomSurfaceSubsetEnergy(Ri, nearest_substrate)
 
 def U_loc_ideal(i, adatoms, substrate_bins):
+	'''
+	Energy of an adatom's nearest neighbor bonds in an ideal lattice.
+	'''
 	Ri = adatoms[i]
 	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins)
 	nearest_adatoms = nearest_adatoms[i]
 	nearest_substrate = nearest_substrate[i]
-	return -(len(nearest_adatoms) + len(nearest_substrate))*gv.E_as
+	return -(len(nearest_adatoms)*E_a + len(nearest_substrate)*E_as)
 
 def C():
+	'''
+	Scaling factor for lattice misfit based on the Stoney equation
+	'''
 	return 1.0
 
 def DeltaU(i, adatoms, substrate_bins):
+	'''
+	Bring it all together to calculate the difference between the in situ lattice and an ideal lattice.
+	'''
 	dU_appx = U_appx(i, adatoms, substrate_bins)
 	dU_loc = U_loc(i, adatoms, substrate_bins)
 	dU_loc_ideal = U_loc_ideal(i, adatoms, substrate_bins)

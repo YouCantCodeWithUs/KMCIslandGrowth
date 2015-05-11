@@ -4,13 +4,13 @@
 import numpy as np
 
 # Constants
-E_a = 2.0972 # eV
-E_s = 2.0972 # eV
+E_a = 1.688 # eV, Ag-Ag
+E_s = 2.083 # eV, Cu-Cu
 # r_a and r_s have to be scaled for the orientation being used? also, not the lattice parameters.
 # should be divided by sqrt2
 # also don't use this for sigma. use r_m formula on wiki.
-r_a = 2.55266
-r_s = 2.55266
+r_a = 3.2 # angstroms Ag
+r_s = 2.7 # angstroms Cu
 E_as = np.sqrt(E_a*E_s)
 r_as = (r_a+r_s)/2
 sqrt3 = np.sqrt(3)
@@ -29,5 +29,5 @@ nbins_y = int(np.ceil(D/bin_size))
 
 # Environmental Parameters
 boltzmann = 8.617e-5 #eV/K
-beta = 1.0/300/boltzmann/7 # 1/eV
+beta = 1.0/300/boltzmann/6 # 1/eV
 deposition_rate = 1.0
