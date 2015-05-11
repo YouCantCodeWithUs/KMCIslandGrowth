@@ -12,7 +12,9 @@ import Periodic
 import Bins
 import Energy
 
-def InitSubstrate(w, h, r_s):
+pool = Pool(4)
+
+def InitSubstrate():
 	'''
 	Initialize substrate atom positions in a hexagonal grid below y = 0
 	
@@ -23,17 +25,18 @@ def InitSubstrate(w, h, r_s):
 	returns: np.array(np.array[x, y]) - list of substrate atom positions
 	'''
 	R = []
-	roffset = np.array([r_s/2, 0])
-	for i in range(h):
-		y = -i*r_s*gv.sqrt3/2
-		for x in range(w):
-			Ri = np.array([x*r_s, y])
+	roffset = np.array([gv.r_s/2, 0])
+	for i in range(gv.Hs):
+		y = -i*gv.r_s*gv.sqrt3/2
+		for x in range(gv.W):
+			Ri = np.array([x*gv.r_s, y])
 			if i%2 == 1:
 				Ri += roffset
 			R.append(Periodic.PutInBox(Ri))
 	return np.array(R)
 
-def DepositionRate(MLps):
+def DepositionRate():
+	return 6.0*18/gv.W*gv.deposition_rate
 	return float(gv.W)*MLps
 
 def SurfaceAtoms(adatoms, substrate_bins):
@@ -75,96 +78,119 @@ def DepositAdatom(adatoms, substrate_bins):
 			if d < 2*gv.r_as:
 				closeby = True
 		if not closeby:
-			Ri -= np.array([0, gv.r_a])
+			Ri -= np.array([0, gv.r_a/2])
 	i = len(adatoms)
 	adatoms.append(Ri)
-	adatoms = RelaxAdatoms(adatoms, substrate_bins, i)
+	adatoms = LocalRelaxation(adatoms, substrate_bins, Ri)
 	return adatoms
 
-def RelaxAdatoms(adatoms, substrate_bins, i = None):
+def Relaxation(adatoms, substrate_bins, scale=1):
+	global pool
+	backup = adatoms[:]
+	Ui = Energy.TotalEnergy(adatoms, substrate_bins)
 	N = len(adatoms)
-	nearby_indices = []
-	relaxing_adatoms = []
-	if i != None:
-		adatom_bins = Bins.PutInBins(adatoms)
-		nearby_adatoms = Bins.NearbyAtoms(adatoms[i], adatom_bins)
-		truth = zip(*[iter(np.in1d(adatoms, nearby_adatoms))]*2)
-		truth = [True if t == (True, True) else False for t in truth]
-		nearby_indices = []
-		for i in range(N):
-			if truth[i]:
-				nearby_indices.append(i)
-		nearby_indices = sorted(nearby_indices, reverse=True)
-		for i in nearby_indices:
-			relaxing_adatoms.append(adatoms.pop(i))
-	else:
-		relaxing_adatoms = adatoms[:]
-	p = Pool(4)
-	xn = relaxing_adatoms[:]
-	N = len(xn)
+	xn = adatoms[:]
 	xnp = []
 	dx0 = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
-	# pos = [xn[N-1]]
-	# Conjugate Gradient
 	for i in range(N):
 		other_adatoms = xn[:]
 		other_adatoms.pop(i)
-		xs = [(xn[i] + a*dx0[i]/100, other_adatoms, substrate_bins) for a in range(100)]
-		ys = p.map(Energy.RelaxEnergy, xs)
-		# ys = [Energy.ArbitraryAdatomEnergy(x, other_adatoms, E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
+		xs = [(xn[i] + a*dx0[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
+		ys = pool.map(Energy.RelaxEnergy, xs)
 		(xmin, a, a) = xs[ys.index(min(ys))]
-		xs = [(xmin - dx0[i]/150 + a*dx0[i]/5000, other_adatoms, substrate_bins) for a in range(100)]
-		ys = p.map(Energy.RelaxEnergy, xs)
-		# ys = [Energy.ArbitraryAdatomEnergy(x, other_adatoms, E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
+		xs = [(xmin - dx0[i]/10/scale + a*dx0[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
+		ys = pool.map(Energy.RelaxEnergy, xs)
 		(xmin, a, a) = xs[ys.index(min(ys))]
 		xnp.append(xmin)
 	sn = dx0[:]
 	snp = dx0[:]
 	dxnp = [Energy.AdatomAdatomForce(i, xnp) + Energy.AdatomSurfaceForce(xnp[i], substrate_bins) for i in range(N)]
 	maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
+	lastmaxF = maxF
 	while maxF > 1e-4:
 		for i in range(N):
 			top = np.dot(xnp[i], (xnp[i] - xn[i]))
-			bottom = np.dot(xn[i], xn[i])
-			beta = top/bottom
+			bot = np.dot(xn[i], xn[i])
+			beta = top/bot
 			snp[i] = dxnp[i] + beta*sn[i]
+			
 		xn = xnp[:]
 		sn = snp[:]
+		
 		for i in range(N):
 			other_adatoms = xn[:]
 			other_adatoms.pop(i)
-			xs = [(xn[i] + a*sn[i]/100, other_adatoms, substrate_bins) for a in range(100)]
-			ys = p.map(Energy.RelaxEnergy, xs)
-			# ys = [Energy.ArbitraryAdatomEnergy(x, other_adatoms, E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
+			xs = [(xn[i] + a*sn[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
+			ys = pool.map(Energy.RelaxEnergy, xs)
 			(xmin, a, a) = xs[ys.index(min(ys))]
-			xs = [(xmin - sn[i]/150 + a*sn[i]/5000, other_adatoms, substrate_bins) for a in range(100)]
-			ys = p.map(Energy.RelaxEnergy, xs)
-			# ys = [Energy.ArbitraryAdatomEnergy(x, other_adatoms, E_a, r_a) + Energy.AdatomSurfaceEnergy(x, substrate_bins, E_as, r_as) for x in xs]
+			xs = [(xmin - sn[i]/10/scale + a*sn[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
+			ys = pool.map(Energy.RelaxEnergy, xs)
 			(xmin, a, a) = xs[ys.index(min(ys))]
 			xmin = Periodic.PutInBox(xmin)
 			xnp[i] = xmin
+			if xmin[1] < 0 or xmin[1] > gv.Dmax:
+				print 'changing scale', scale*2
+				return Relaxation(backup, substrate_bins, scale=scale*2)
+		
 		xn = xnp[:]
-		# pos.append(xn[N-1])
 		dxnp = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
 		maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
-		# print maxF
-	# xs = [p[0] for p in pos]
-	# ys = [p[1] for p in pos]
-	# plt.plot(xs, ys)
-	# plt.show()
-	return adatoms + xn
+		if abs(lastmaxF - maxF) < 1e-6 or maxF > 1e4 or Energy.TotalEnergy(adatoms, substrate_bins) > Ui:
+			print 'changing scale', scale*2
+			return Relaxation(backup, substrate_bins, scale=scale*2)
+		lastmaxF = maxF
+		# print scale, maxF
+	return xn
+
+def LocalRelaxation(adatoms, substrate_bins, around, scale=1):
+	# backup = adatoms[:]
+	nearby_indices = []
+	relaxing_adatoms = []
+	adatom_bins = Bins.PutInBins(adatoms)
+	nearby_adatoms = Bins.NearbyAtoms(around, adatom_bins)
+	truth = zip(*[iter(np.in1d(adatoms, nearby_adatoms))]*2)
+	truth = [True if t == (True, True) else False for t in truth]
+	nearby_indices = []
+	for i in range(len(adatoms)):
+		if truth[i]:
+			nearby_indices.append(i)
+	nearby_indices = sorted(nearby_indices, reverse=True)
+	for i in nearby_indices:
+		relaxing_adatoms.append(adatoms.pop(i))
+	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins)
+	return adatoms + relaxing_adatoms
 
 def HoppingRates(adatoms, substrate_bins):
-	omega = 1.0#e12
-	surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_as, gv.r_a)
-	indexes = [adatoms.index(s) for s in surf]
-	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins, E_as, r_as, E_a, r_a)*betaK) for i in indexes]
+	omega = 1.0e12
+	surf = SurfaceAtoms(adatoms, substrate_bins)
+	truth = zip(*[iter(np.in1d(adatoms, surf))]*2)
+	truth = [True if t == (True, True) else False for t in truth]
+	surf_indices = []
+	for i in range(len(surf)):
+		if truth[i]:
+			surf_indices.append(i)
+	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins)*gv.beta) for i in surf_indices]
 
 def HoppingPartialSums(Rk):
-	return [sum(Rk[:i+1]) for i in range(len(Rk))]
+	return [0] + [sum(Rk[:i+1]) for i in range(len(Rk))]
 
 def TotalRate(Rd, Rk):
 	return Rd + sum(Rk)
+
+def HopAtom(i, adatoms, substrate_bins):
+	surf = SurfaceAtoms(adatoms, substrate_bins)
+	jumper = adatoms.pop(i)
+	surf = [s for s in surf if Periodic.Distance(jumper, s) < 3*gv.r_a]
+	jump_to_surf = surf[random.randint(0, len(surf)-1)]
+	jump_directions = [i*np.pi/3 for i in range(6)]
+	jump_vectors = [np.array([np.cos(t), np.sin(t)])*gv.r_a for t in jump_directions]
+	jump_positions = [jump_to_surf + v for v in jump_vectors]
+	jump_energies = [Energy.ArbitraryAdatomEnergy(p, adatoms) + Energy.AdatomSurfaceEnergy(p, substrate_bins) for p in jump_positions]
+	jump_to_pos = jump_positions[jump_energies.index(min(jump_energies))]
+	jump_to_pos = Periodic.PutInBox(jump_to_pos)
+	adatoms.append(jump_to_pos)
+	adatoms = LocalRelaxation(adatoms, substrate_bins, jump_to_pos)
+	return adatoms
 
 def PlotSubstrate(substrate, color='blue'):
 	PlotAtoms(substrate, color)
@@ -178,40 +204,34 @@ def PlotAtoms(atoms, color='blue'):
 	for a in atoms:
 		plt.scatter(a[0], a[1], color=color)
 
-substrate = InitSubstrate(gv.W, gv.Hs, gv.r_s)
+substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
-for i in range(50):
-	print i
-	adatoms = DepositAdatom(adatoms, substrate_bins)
-	if i % 5 == 0:
-		PlotSubstrate(substrate, 'blue')
-		PlotAtoms(adatoms, 'green')
-		surf = SurfaceAtoms(adatoms, substrate_bins)
-		PlotAtoms(surf, 'red')
-		plt.savefig('%2i.png'%i)
-		# plt.show()
-		plt.clf()
-
-# Rk = HoppingRates(adatoms, substrate_bins, gv.E_as, gv.r_as, gv.E_a, gv.r_a, gv.beta/gv.boltzmann)
-# pj = HoppingPartialSums(Rk)
-# Rd = DepositionRate(gv.deposition_rate)
-# Rtot = TotalRate(Rd, Rk)
-# r = random.random()*Rtot
-# HoppingAtom = [p for p in pj if p > r]
-# if len(HoppingAtom) > 0:
-# 	# hop atom
-# 	print 'HOP'
-# else:
-# 	adatoms = DepositAdatom(adatoms, substrate_bins, gv.r_as)
-# print adatoms
-
-# PlotSubstrate(substrate)
-# surf = SurfaceAtoms(adatoms, substrate_bins, gv.r_as, gv.r_a)
-# PlotSubstrate(surf, 'red')
-# plt.show()
-# plt.clf()
+t = 0
+while True:
+	Rk = HoppingRates(adatoms, substrate_bins)
+	pj = HoppingPartialSums(Rk)
+	Rd = DepositionRate()
+	Rtot = TotalRate(Rd, Rk)
+	r = random.random()*Rtot
+	print t, pj[-1], Rd, r
+	HoppingAtom = [p for p in pj if p > r]
+	if len(HoppingAtom) > 0:
+		print 'HOP'
+		adatoms = HopAtom(pj.index(HoppingAtom[0])-1, adatoms, substrate_bins)
+	else:
+		adatoms = DepositAdatom(adatoms, substrate_bins)
+	
+	# if i % 5 == 0:
+	PlotSubstrate(substrate, 'blue')
+	PlotAtoms(adatoms, 'green')
+	surf = SurfaceAtoms(adatoms, substrate_bins)
+	PlotAtoms(surf, 'red')
+	plt.savefig('_Images/D/%2i.png'%t)
+	# plt.show()
+	plt.clf()
+	t += 1
 
 # minimum energy position
 # xs = np.linspace(0, gv.L, 500)
