@@ -68,6 +68,9 @@ def NearbyBins(Ri):
 	return (nearby_x, nearby_y)
 
 def NearbyAtoms(Ri, R_bins):
+	'''
+	Find nearest atoms to Ri in R_bins.
+	'''
 	(nearby_x, nearby_y) = NearbyBins(Ri)
 	nearby_atoms = []
 	for x in nearby_x:
@@ -79,6 +82,9 @@ def NearbyAtoms(Ri, R_bins):
 	return nearby_atoms
 
 def NearestNeighbors(adatoms, substrate_bins):
+	'''
+	Find closest adatoms and substrate atoms. Mostly used for counting bonds.
+	'''
 	nearest_adatoms, nearest_substrate = [], []
 	adatom_bins = PutInBins(adatoms)
 	for Ri in adatoms:

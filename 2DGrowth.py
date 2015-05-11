@@ -12,7 +12,7 @@ import Periodic
 import Bins
 import Energy
 
-pool = Pool(4)
+pool = Pool(3)
 
 def InitSubstrate():
 	'''
@@ -36,6 +36,9 @@ def InitSubstrate():
 	return np.array(R)
 
 def DepositionRate():
+	'''
+	Returns a calculated value based on estimated wafer size and flux rate.
+	'''
 	return 6.0*18/gv.W*gv.deposition_rate
 	return float(gv.W)*MLps
 
@@ -43,7 +46,9 @@ def SurfaceAtoms(adatoms, substrate_bins):
 	'''
 	Identifies surface adatoms. 
 	Surface atoms are defined as adatoms coordinated by < 5 other atoms.
+	
 	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
 	
 	returns: List[np.array[x, y]] - list of positions of surface adatoms.
 	'''
@@ -56,7 +61,10 @@ def SurfaceAtoms(adatoms, substrate_bins):
 
 def DepositAdatom(adatoms, substrate_bins):
 	'''
+	Deposits new adatom onto the surface, then performs a relaxation.
+	
 	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
 	
 	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
 	'''
@@ -85,16 +93,33 @@ def DepositAdatom(adatoms, substrate_bins):
 	return adatoms
 
 def Relaxation(adatoms, substrate_bins, scale=1):
+	'''
+	Relaxes the deposited adatoms into the lowest energy position using a conjugate gradient algorithm.
+	Runs recursively if the step size is too small.
+	Uses a multiprocessing pool for extra speed.
+	
+	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
+	scale: int - How much to scale the step size down by
+	
+	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
+	'''
 	global pool
+	if scale > 2048:
+		print 'GAH!'
+		sys.exit()
 	backup = adatoms[:]
+	# If the energy of a proposed relaxed arrangement exceeds this Ui, then halve the stepsize and start over.
 	Ui = Energy.TotalEnergy(adatoms, substrate_bins)
 	N = len(adatoms)
 	xn = adatoms[:]
 	xnp = []
+	# Initial forces on each atom
 	dx0 = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
 	for i in range(N):
 		other_adatoms = xn[:]
 		other_adatoms.pop(i)
+		# Search for the lowest energy along the force vector
 		xs = [(xn[i] + a*dx0[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
 		ys = pool.map(Energy.RelaxEnergy, xs)
 		(xmin, a, a) = xs[ys.index(min(ys))]
@@ -104,14 +129,17 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 		xnp.append(xmin)
 	sn = dx0[:]
 	snp = dx0[:]
+	# Force on each atom in the lowest energy position
 	dxnp = [Energy.AdatomAdatomForce(i, xnp) + Energy.AdatomSurfaceForce(xnp[i], substrate_bins) for i in range(N)]
 	maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
 	lastmaxF = maxF
 	while maxF > 1e-4:
 		for i in range(N):
+			# Calculate the conjugate direction step size, beta
 			top = np.dot(xnp[i], (xnp[i] - xn[i]))
 			bot = np.dot(xn[i], xn[i])
 			beta = top/bot
+			# Update conjugate direction
 			snp[i] = dxnp[i] + beta*sn[i]
 			
 		xn = xnp[:]
@@ -120,6 +148,7 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 		for i in range(N):
 			other_adatoms = xn[:]
 			other_adatoms.pop(i)
+			# Calculate lowester energy position along the conjugate direction vector
 			xs = [(xn[i] + a*sn[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
 			ys = pool.map(Energy.RelaxEnergy, xs)
 			(xmin, a, a) = xs[ys.index(min(ys))]
@@ -129,21 +158,33 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 			xmin = Periodic.PutInBox(xmin)
 			xnp[i] = xmin
 			if xmin[1] < 0 or xmin[1] > gv.Dmax:
+				# Halve the step size if things went wonky
 				print 'changing scale', scale*2
 				return Relaxation(backup, substrate_bins, scale=scale*2)
 		
 		xn = xnp[:]
+		# Calculate forces at new lowest energy position
 		dxnp = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
 		maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
 		if abs(lastmaxF - maxF) < 1e-6 or maxF > 1e4 or Energy.TotalEnergy(adatoms, substrate_bins) > Ui:
+			# Halve the step size if things went wonky
 			print 'changing scale', scale*2
 			return Relaxation(backup, substrate_bins, scale=scale*2)
 		lastmaxF = maxF
-		# print scale, maxF
 	return xn
 
-def LocalRelaxation(adatoms, substrate_bins, around, scale=1):
-	# backup = adatoms[:]
+def LocalRelaxation(adatoms, substrate_bins, around):
+	'''
+	Relaxes the deposited adatoms into the lowest energy position using a conjugate gradient algorithm.
+	Performs an additional global relaxation is global forces are too large.
+	
+	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
+	around: np.array[x, y] - position around which to perform the relaxation
+	
+	returns: np.array(np.array[x, y]) - positions of relaxed adatoms
+	'''
+	
 	nearby_indices = []
 	relaxing_adatoms = []
 	adatom_bins = Bins.PutInBins(adatoms)
@@ -158,9 +199,23 @@ def LocalRelaxation(adatoms, substrate_bins, around, scale=1):
 	for i in nearby_indices:
 		relaxing_adatoms.append(adatoms.pop(i))
 	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins)
-	return adatoms + relaxing_adatoms
+	adatoms += relaxing_adatoms
+	forces = [Energy.AdatomAdatomForce(i, adatoms) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins) for i in range(len(adatoms))]
+	maxF = max([np.dot(f, f) for f in forces])
+	if maxF > 1e-3:
+		print 'global required'
+		adatoms = Relaxation(adatoms, substrate_bins)
+	return adatoms
 
 def HoppingRates(adatoms, substrate_bins):
+	'''
+	Calculates the hopping rate of each surface adatom.
+	
+	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
+	
+	returns: list(float) - hopping rate of each surface atom
+	'''
 	omega = 1.0e12
 	surf = SurfaceAtoms(adatoms, substrate_bins)
 	truth = zip(*[iter(np.in1d(adatoms, surf))]*2)
@@ -172,12 +227,27 @@ def HoppingRates(adatoms, substrate_bins):
 	return [omega*np.exp(Energy.DeltaU(i, adatoms, substrate_bins)*gv.beta) for i in surf_indices]
 
 def HoppingPartialSums(Rk):
+	'''
+	Cumulative sum hopping rates. Used to determine whether to hop or deposit.
+	'''
 	return [0] + [sum(Rk[:i+1]) for i in range(len(Rk))]
 
 def TotalRate(Rd, Rk):
+	'''
+	Addition!
+	'''
 	return Rd + sum(Rk)
 
 def HopAtom(i, adatoms, substrate_bins):
+	'''
+	Moves a surface adatom and to a nearby spot. Performs a local relaxation around the new position.
+	
+	i: int - index of adatom to hop
+	adatoms: np.array(np.array[x, y]) - position of adatoms
+	substrate_bins: list(list(np.array[x, y])) - bin'd position of substrate atoms
+	
+	returns: np.array(np.array[x, y]) - positions of relaxed adatoms after hop
+	'''
 	surf = SurfaceAtoms(adatoms, substrate_bins)
 	jumper = adatoms.pop(i)
 	surf = [s for s in surf if Periodic.Distance(jumper, s) < 3*gv.r_a]
@@ -193,6 +263,9 @@ def HopAtom(i, adatoms, substrate_bins):
 	return adatoms
 
 def PlotSubstrate(substrate, color='blue'):
+	'''
+	Pretty plots.
+	'''
 	PlotAtoms(substrate, color)
 	for x in range(gv.nbins_x + 2):
 		plt.plot([x*gv.bin_size - gv.L/2, x*gv.bin_size - gv.L/2], [gv.Dmin, gv.nbins_y*gv.bin_size + gv.Dmin], color='red')
@@ -201,8 +274,25 @@ def PlotSubstrate(substrate, color='blue'):
 	# plt.show()
 
 def PlotAtoms(atoms, color='blue'):
+	'''
+	Pretty plots.
+	'''
 	for a in atoms:
 		plt.scatter(a[0], a[1], color=color)
+
+def PlotEnergy(adatoms, substrate_bins):
+	'''
+	Pretty plots.
+	'''
+	ymin = min(a[1] for a in adatoms) + gv.r_a
+	xs = np.linspace(-gv.L/2, gv.L/2, 500)
+	pos = [(np.array([x, ymin]), adatoms, substrate_bins) for x in xs]
+	Es = pool.map(Energy.RelaxEnergy, pos)
+	plt.plot(xs, Es)
+	plt.axis([min(xs), max(xs), min(Es)-0.1, max(Es)+0.1])
+	# plt.show()
+	plt.savefig('_Images/F/E%.2i.png'%t)
+	plt.clf()
 
 substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
@@ -228,9 +318,11 @@ while True:
 	PlotAtoms(adatoms, 'green')
 	surf = SurfaceAtoms(adatoms, substrate_bins)
 	PlotAtoms(surf, 'red')
-	plt.savefig('_Images/D/%2i.png'%t)
+	plt.axis([-gv.L/2-0.1, gv.L/2+0.1, gv.Dmin-0.1, gv.Dmax+3*gv.r_as])
+	plt.savefig('_Images/H/%.2i.png'%t)
 	# plt.show()
 	plt.clf()
+	# PlotEnergy(adatoms, substrate_bins)
 	t += 1
 
 # minimum energy position
