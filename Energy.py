@@ -22,14 +22,14 @@ def PairwisePotential(Ri, Rj, E_ij, r_ij):
 	r = Periodic.Distance(Ri, Rj)
 	if r == 0:
 		return 0
-	return 4*E_ij*((r_ij/r)**12 - (r_ij/r)**6)
+	return E_ij*((r_ij/r)**12 - 2*(r_ij/r)**6)
 
 def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	r_vec = Periodic.Displacement(Ri, Rj)
 	r_mag = np.sqrt(np.dot(r_vec, r_vec))
 	if r_mag == 0:
 		return np.zeros(2)
-	f = 4*E_ij*(-12*r_ij**12/r_mag**13 + 6*r_ij**6/r_mag**7)
+	f = E_ij*(-12*r_ij**12/r_mag**13 + 12*r_ij**6/r_mag**7)
 	return r_vec/r_mag*f
 
 def AdatomSurfaceSubsetEnergy(adatom, substrate_subset):
