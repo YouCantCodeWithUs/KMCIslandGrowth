@@ -12,6 +12,8 @@ import Periodic
 import Bins
 import Energy
 
+pool = Pool(4)
+
 def InitSubstrate():
 	'''
 	Initialize substrate atom positions in a hexagonal grid below y = 0
@@ -83,10 +85,10 @@ def DepositAdatom(adatoms, substrate_bins):
 	return adatoms
 
 def Relaxation(adatoms, substrate_bins, scale=1):
+	global pool
 	backup = adatoms[:]
 	Ui = Energy.TotalEnergy(adatoms, substrate_bins)
 	N = len(adatoms)
-	p = Pool(4)
 	xn = adatoms[:]
 	xnp = []
 	dx0 = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
@@ -94,10 +96,10 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 		other_adatoms = xn[:]
 		other_adatoms.pop(i)
 		xs = [(xn[i] + a*dx0[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
-		ys = p.map(Energy.RelaxEnergy, xs)
+		ys = pool.map(Energy.RelaxEnergy, xs)
 		(xmin, a, a) = xs[ys.index(min(ys))]
 		xs = [(xmin - dx0[i]/10/scale + a*dx0[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
-		ys = p.map(Energy.RelaxEnergy, xs)
+		ys = pool.map(Energy.RelaxEnergy, xs)
 		(xmin, a, a) = xs[ys.index(min(ys))]
 		xnp.append(xmin)
 	sn = dx0[:]
@@ -119,10 +121,10 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 			other_adatoms = xn[:]
 			other_adatoms.pop(i)
 			xs = [(xn[i] + a*sn[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
-			ys = p.map(Energy.RelaxEnergy, xs)
+			ys = pool.map(Energy.RelaxEnergy, xs)
 			(xmin, a, a) = xs[ys.index(min(ys))]
 			xs = [(xmin - sn[i]/10/scale + a*sn[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
-			ys = p.map(Energy.RelaxEnergy, xs)
+			ys = pool.map(Energy.RelaxEnergy, xs)
 			(xmin, a, a) = xs[ys.index(min(ys))]
 			xmin = Periodic.PutInBox(xmin)
 			xnp[i] = xmin
@@ -185,6 +187,7 @@ def HopAtom(i, adatoms, substrate_bins):
 	jump_positions = [jump_to_surf + v for v in jump_vectors]
 	jump_energies = [Energy.ArbitraryAdatomEnergy(p, adatoms) + Energy.AdatomSurfaceEnergy(p, substrate_bins) for p in jump_positions]
 	jump_to_pos = jump_positions[jump_energies.index(min(jump_energies))]
+	jump_to_pos = Periodic.PutInBox(jump_to_pos)
 	adatoms.append(jump_to_pos)
 	adatoms = LocalRelaxation(adatoms, substrate_bins, jump_to_pos)
 	return adatoms
@@ -205,7 +208,8 @@ substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
-for t in range(50):
+t = 0
+while True:
 	Rk = HoppingRates(adatoms, substrate_bins)
 	pj = HoppingPartialSums(Rk)
 	Rd = DepositionRate()
@@ -224,9 +228,10 @@ for t in range(50):
 	PlotAtoms(adatoms, 'green')
 	surf = SurfaceAtoms(adatoms, substrate_bins)
 	PlotAtoms(surf, 'red')
-	plt.savefig('_Images/C/%2i.png'%t)
+	plt.savefig('_Images/D/%2i.png'%t)
 	# plt.show()
 	plt.clf()
+	t += 1
 
 # minimum energy position
 # xs = np.linspace(0, gv.L, 500)
