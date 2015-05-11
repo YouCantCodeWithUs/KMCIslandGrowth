@@ -6,13 +6,14 @@ import random
 import numpy as np
 from multiprocessing import Pool
 from matplotlib import pyplot as plt
+import pprint
 
 import Constants as gv
 import Periodic
 import Bins
 import Energy
 
-pool = Pool(3)
+pool = Pool(1)
 
 def InitSubstrate():
 	'''
@@ -92,7 +93,7 @@ def DepositAdatom(adatoms, substrate_bins):
 	adatoms = LocalRelaxation(adatoms, substrate_bins, Ri)
 	return adatoms
 
-def Relaxation(adatoms, substrate_bins, scale=1):
+def Relaxation(adatoms, substrate_bins, scale=1, threshold=1e-4):
 	'''
 	Relaxes the deposited adatoms into the lowest energy position using a conjugate gradient algorithm.
 	Runs recursively if the step size is too small.
@@ -105,10 +106,13 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
 	'''
 	global pool
-	if scale > 2048:
-		print 'GAH!'
-		sys.exit()
 	backup = adatoms[:]
+	if scale > 1024:
+		if threshold > 1e-1:
+			print 'I GIVE UP'
+			sys.exit()
+		print 'GAH!', threshold*5
+		return Relaxation(backup, substrate_bins, scale=16, threshold=threshold*5)
 	# If the energy of a proposed relaxed arrangement exceeds this Ui, then halve the stepsize and start over.
 	Ui = Energy.TotalEnergy(adatoms, substrate_bins)
 	N = len(adatoms)
@@ -133,7 +137,7 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 	dxnp = [Energy.AdatomAdatomForce(i, xnp) + Energy.AdatomSurfaceForce(xnp[i], substrate_bins) for i in range(N)]
 	maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
 	lastmaxF = maxF
-	while maxF > 1e-4:
+	while maxF > threshold:
 		for i in range(N):
 			# Calculate the conjugate direction step size, beta
 			top = np.dot(xnp[i], (xnp[i] - xn[i]))
@@ -157,10 +161,10 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 			(xmin, a, a) = xs[ys.index(min(ys))]
 			xmin = Periodic.PutInBox(xmin)
 			xnp[i] = xmin
-			if xmin[1] < 0 or xmin[1] > gv.Dmax:
+			if xmin[1] < -0.1 or xmin[1] > max([p[1] for p in backup])+gv.r_a*1.2:
 				# Halve the step size if things went wonky
-				print 'changing scale', scale*2
-				return Relaxation(backup, substrate_bins, scale=scale*2)
+				print 'changing scale', scale*2, xmin
+				return Relaxation(backup, substrate_bins, scale=scale*2, threshold=threshold)
 		
 		xn = xnp[:]
 		# Calculate forces at new lowest energy position
@@ -168,8 +172,8 @@ def Relaxation(adatoms, substrate_bins, scale=1):
 		maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
 		if abs(lastmaxF - maxF) < 1e-6 or maxF > 1e4 or Energy.TotalEnergy(adatoms, substrate_bins) > Ui:
 			# Halve the step size if things went wonky
-			print 'changing scale', scale*2
-			return Relaxation(backup, substrate_bins, scale=scale*2)
+			print 'changing scale', scale*2, maxF
+			return Relaxation(backup, substrate_bins, scale=scale*2, threshold=threshold)
 		lastmaxF = maxF
 	return xn
 
@@ -198,13 +202,13 @@ def LocalRelaxation(adatoms, substrate_bins, around):
 	nearby_indices = sorted(nearby_indices, reverse=True)
 	for i in nearby_indices:
 		relaxing_adatoms.append(adatoms.pop(i))
-	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins)
+	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins, scale=16)
 	adatoms += relaxing_adatoms
 	forces = [Energy.AdatomAdatomForce(i, adatoms) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins) for i in range(len(adatoms))]
 	maxF = max([np.dot(f, f) for f in forces])
-	if maxF > 1e-3:
+	if maxF > 1e-1:
 		print 'global required'
-		adatoms = Relaxation(adatoms, substrate_bins)
+		adatoms = Relaxation(adatoms, substrate_bins, scale=16, threshold=1e-2)
 	return adatoms
 
 def HoppingRates(adatoms, substrate_bins):
@@ -291,13 +295,16 @@ def PlotEnergy(adatoms, substrate_bins):
 	plt.plot(xs, Es)
 	plt.axis([min(xs), max(xs), min(Es)-0.1, max(Es)+0.1])
 	# plt.show()
-	plt.savefig('_Images/F/E%.2i.png'%t)
+	plt.savefig(gv.folder + 'E%.2i.png'%t)
 	plt.clf()
 
 substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
+adatoms = InitSubstrate()[:gv.W-1]
+adatoms = [adatoms[i] + np.array([gv.r_a/2, gv.r_a*gv.sqrt3/2]) for i in range(len(adatoms)-1)]
+adatoms = Relaxation(adatoms, substrate_bins, scale=16)
 t = 0
 while True:
 	Rk = HoppingRates(adatoms, substrate_bins)
@@ -319,7 +326,7 @@ while True:
 	surf = SurfaceAtoms(adatoms, substrate_bins)
 	PlotAtoms(surf, 'red')
 	plt.axis([-gv.L/2-0.1, gv.L/2+0.1, gv.Dmin-0.1, gv.Dmax+3*gv.r_as])
-	plt.savefig('_Images/H/%.2i.png'%t)
+	plt.savefig(gv.folder + '%.2i.png'%t)
 	# plt.show()
 	plt.clf()
 	# PlotEnergy(adatoms, substrate_bins)

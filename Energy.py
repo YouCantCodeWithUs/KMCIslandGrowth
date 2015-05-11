@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from multiprocessing import Pool
 
 import Constants as gv
 import Periodic
