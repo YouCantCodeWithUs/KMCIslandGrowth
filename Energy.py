@@ -157,7 +157,7 @@ def U_loc_ideal(i, adatoms, substrate_bins):
 	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins)
 	nearest_adatoms = nearest_adatoms[i]
 	nearest_substrate = nearest_substrate[i]
-	return -(len(nearest_adatoms)*E_a + len(nearest_substrate)*E_as)
+	return -(len(nearest_adatoms)*gv.E_a + len(nearest_substrate)*gv.E_as)
 
 def C():
 	'''
