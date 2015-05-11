@@ -70,6 +70,17 @@ def ArbitraryAdatomEnergy(Ri, adatoms):
 	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
 	return sum([PairwisePotential(Ri, Rj, gv.E_a, gv.r_a) for Rj in nearby_adatoms])
 
+def TotalEnergy(adatoms, substrate_bins):
+	U = 0
+	for i in range(len(adatoms)-2):
+		Ri = adatoms[i]
+		for j in range(i+1, len(adatoms)-1):
+			Rj = adatoms[j]
+			U += PairwisePotential(Ri, Rj, gv.E_a, gv.r_a)
+		U += AdatomSurfaceEnergy(Ri, substrate_bins)
+	U += AdatomSurfaceEnergy(adatoms[-1], substrate_bins)
+	return U
+
 def RelaxEnergy(args):
 	(x, other_adatoms, substrate_bins) = args
 	return ArbitraryAdatomEnergy(x, other_adatoms) + AdatomSurfaceEnergy(x, substrate_bins)
