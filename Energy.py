@@ -23,6 +23,11 @@ def PairwisePotential(Ri, Rj, E_ij, r_ij):
 		return 0
 	return E_ij*((r_ij/r)**12 - 2*(r_ij/r)**6)
 
+def PairwisePotentials(Ri, Rjs, E_ij, r_ij):
+	Ds = Periodic.Distances(Ri, Rjs)[0]
+	Us = [E_ij*((r_ij/d)**12 - 2*(r_ij/d)**6) if d > 0 else 0 for d in Ds]
+	return Us
+
 def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	'''
 	Lennard-Jones force between two atoms.
@@ -41,11 +46,39 @@ def PairwiseForce(Ri, Rj, E_ij, r_ij):
 	f = E_ij*(-12*r_ij**12/r_mag**13 + 12*r_ij**6/r_mag**7)
 	return r_vec/r_mag*f
 
+def PairwiseForces(Ri, Rjs, E_ij, r_ij):
+	r_vecs = Periodic.Displacements(Ri[0], Ri[1], Rjs)
+	r_mags = r_vecs*r_vecs
+	r_mags = [np.sqrt(r_mags[2*j] + r_mags[2*j+1]) for j in range(len(r_mags)/2)]
+	F = np.array([0., 0.])
+	for i in range(len(r_mags)):
+		if r_mags[i] == 0:
+			continue
+		f = E_ij*(-12*r_ij**12/r_mags[i]**13 + 12*r_ij**6/r_mags[i]**7)
+		F[0] += r_vecs[2*i]/r_mags[i]*f
+		F[1] += r_vecs[2*i+1]/r_mags[i]*f
+	return F
+
+def AdatomAdatomForces(adatoms):
+	Fs = []
+	for i in range(len(adatoms)/2):
+		F = PairwiseForces(adatoms[2*i:2*i+2], adatoms, gv.E_a, gv.r_a)
+		Fs.append(F[0]); Fs.append(F[1])
+	return np.array(Fs)
+
+def AdatomSubstrateForces(adatoms, substrate_bins):
+	Fs = []
+	for i in range(len(adatoms)/2):
+		nearby_substrate = Bins.NearbyAtoms(adatoms[2*i], adatoms[2*i+1], substrate_bins)
+		F = PairwiseForces(adatoms[2*i:2*i+2], nearby_substrate, gv.E_as, gv.r_as)
+		Fs.append(F[0]); Fs.append(F[1])
+	return np.array(Fs)
+
 def AdatomSurfaceSubsetEnergy(adatom, substrate_subset):
 	'''
 	Modular code! I think this is used somewhere other than AdatomSurfaceEnergy() for something. Maybe.
 	'''
-	return sum([PairwisePotential(adatom, Rs, gv.E_as, gv.r_as) for Rs in substrate_subset])
+	return sum(PairwisePotentials(adatom, substrate_subset, gv.E_as, gv.r_as))
 
 def AdatomSurfaceEnergy(adatom, substrate_bins):
 	'''
@@ -58,7 +91,7 @@ def AdatomSurfaceEnergy(adatom, substrate_bins):
 	
 	returns: Float - potential energy of adatom due to substrate atoms
 	'''
-	nearby_substrate = Bins.NearbyAtoms(adatom, substrate_bins)
+	nearby_substrate = Bins.NearbyAtoms(adatom[0], adatom[1], substrate_bins)
 	return AdatomSurfaceSubsetEnergy(adatom, nearby_substrate)
 
 def AdatomAdatomEnergy(i, adatoms):
@@ -90,13 +123,11 @@ def TotalEnergy(adatoms, substrate_bins):
 	Used to compare potentially relaxed states to the unrelaxed state.
 	'''
 	U = 0
-	for i in range(len(adatoms)-2):
-		Ri = adatoms[i]
-		for j in range(i+1, len(adatoms)-1):
-			Rj = adatoms[j]
-			U += PairwisePotential(Ri, Rj, gv.E_a, gv.r_a)
+	for i in range(len(adatoms)/2-2):
+		Ri = np.array([adatoms[2*i], adatoms[2*i+1]])
+		U += sum(PairwisePotentials(Ri, adatoms[2*i+2:], gv.E_a, gv.r_a))
 		U += AdatomSurfaceEnergy(Ri, substrate_bins)
-	U += AdatomSurfaceEnergy(adatoms[-1], substrate_bins)
+	U += AdatomSurfaceEnergy(adatoms[-2:], substrate_bins)
 	return U
 
 def RelaxEnergy(args):

@@ -5,7 +5,7 @@ import numpy as np
 
 import Constants as gv
 
-def PutInBox(Ri):
+def PutInBox(x):
 	'''
 	Implement periodic boundary conditions along the x-axis.
 	
@@ -14,10 +14,15 @@ def PutInBox(Ri):
 	
 	returns: np.array[x, y] - correct position using PBC
 	'''
-	x = Ri[0] % gv.L
+	x = x % gv.L
 	if abs(x) > gv.L/2:
 		x += gv.L if gv.L < 0 else -gv.L
-	return np.array([x, Ri[1]])
+	return x
+
+def PutAllInBox(R):
+	for i in range(len(R)/2):
+		R[2*i] = PutInBox(R[2*i])
+	return R
 
 def Displacement(Ri, Rj):
 	'''
@@ -28,7 +33,7 @@ def Displacement(Ri, Rj):
 	
 	returns: np.array[x, y] - vector pointing from Ri to Rj
 	'''
-	return PutInBox(Rj-Ri)
+	return PutAllInBox(Rj-Ri)
 
 def Distance(Ri, Rj):
 	'''
@@ -41,3 +46,17 @@ def Distance(Ri, Rj):
 	'''
 	d = Displacement(Ri, Rj)
 	return np.sqrt(np.dot(d, d))
+
+def Displacements(x, y, Rjs):
+	d = np.array([x, y]*(len(Rjs)/2))
+	return Displacement(d, Rjs)
+
+def Distances(a, b):
+	Ds = []
+	for i in range(len(a)/2):
+		x = a[2*i]; y = a[2*i+1]
+		d = Displacements(x, y, b)
+		d *= d
+		D = [np.sqrt(d[2*j] + d[2*j+1]) for j in range(len(d)/2)]
+		Ds.append(np.array(D))
+	return np.array(Ds)

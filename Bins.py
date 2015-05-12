@@ -6,7 +6,7 @@ import numpy as np
 import Constants as gv
 import Periodic
 
-def BinIndex(Ri):
+def BinIndex(x, y):
 	'''
 	Position of an atom in 'bin-space'.
 	
@@ -17,8 +17,8 @@ def BinIndex(Ri):
 	
 	returns: (Int, Int) - indices of the atom in 'bin-space'
 	'''
-	nx = int((Ri[0] + gv.L/2)/gv.bin_size)
-	ny = int((Ri[1] - gv.Dmin)/gv.bin_size)
+	nx = int((x + gv.L/2)/gv.bin_size)
+	ny = int((y - gv.Dmin)/gv.bin_size)
 	return (nx, ny)
 
 def PutInBins(R):
@@ -30,16 +30,18 @@ def PutInBins(R):
 	returns: [[[np.array[x, y]]]] - bins of atom positions ordered column-first ([x][y])
 	'''
 	bins = []
-	for Ri in R:
-		(nx, ny) = BinIndex(Ri)
+	for i in range(len(R)/2):
+		x = R[2*i]; y = R[2*i+1]
+		(nx, ny) = BinIndex(x, y)
 		while len(bins) <= nx:
 			bins.append([])
 		while len(bins[nx]) <= ny:
 			bins[nx].append([])
-		bins[nx][ny].append(Ri)
-	return bins
+		bins[nx][ny].append(x)
+		bins[nx][ny].append(y)
+	return np.array(bins)
 
-def NearbyBins(Ri):
+def NearbyBins(x, y):
 	'''
 	Which bins are adjacent to this atom?
 	
@@ -49,7 +51,7 @@ def NearbyBins(Ri):
 	
 	returns: ([Int], [Int]) - indices of nearby bins separated by coordinate ([all-xs], [all-ys])
 	'''
-	(nx, ny) = BinIndex(Ri)
+	(nx, ny) = BinIndex(x, y)
 	nearby_x = [nx-1, nx, nx+1]
 	nearby_y = [ny-1, ny, ny+1]
 	for i in range(3):
@@ -67,11 +69,11 @@ def NearbyBins(Ri):
 		nearby_x.append(0)
 	return (nearby_x, nearby_y)
 
-def NearbyAtoms(Ri, R_bins):
+def NearbyAtoms(x, y, R_bins):
 	'''
 	Find nearest atoms to Ri in R_bins.
 	'''
-	(nearby_x, nearby_y) = NearbyBins(Ri)
+	(nearby_x, nearby_y) = NearbyBins(x, y)
 	nearby_atoms = []
 	for x in nearby_x:
 		for y in nearby_y:
@@ -79,7 +81,7 @@ def NearbyAtoms(Ri, R_bins):
 				nearby_atoms += R_bins[x][y]
 			except IndexError:
 				pass # Bins with no atoms are not returned from PutInBins()
-	return nearby_atoms
+	return np.array(nearby_atoms)
 
 def NearestNeighbors(adatoms, substrate_bins):
 	'''
@@ -87,23 +89,23 @@ def NearestNeighbors(adatoms, substrate_bins):
 	'''
 	nearest_adatoms, nearest_substrate = [], []
 	adatom_bins = PutInBins(adatoms)
-	for Ri in adatoms:
-		nearby_adatoms = NearbyAtoms(Ri, adatom_bins)
-		nearby_substrate = NearbyAtoms(Ri, substrate_bins)
+	for i in range(len(adatoms)/2):
+		x = adatoms[2*i]; y = adatoms[2*i+1]
+		nearby_adatoms = NearbyAtoms(x, y, adatom_bins)
+		nearby_substrate = NearbyAtoms(x, y, substrate_bins)
 		na_i, ns_i = [], []
-		for Rj in nearby_adatoms:
-			d = Periodic.Displacement(Ri, Rj)
-			if abs(d[0]) < 1.2*gv.r_a and abs(d[1]) < 1.2*gv.r_a:
-				d = np.sqrt(np.dot(d, d))
-				if d == 0:
-					pass
-				elif d < 1.2*gv.r_a:
-					na_i.append(Rj)
-		nearest_adatoms.append(na_i)
-		for Rj in nearby_substrate:
-			d = Periodic.Displacement(Ri, Rj)
-			if abs(d[0]) < 1.2*gv.r_as and abs(d[1]) < 1.2*gv.r_as:
-				d = np.sqrt(np.dot(d, d))
-				ns_i.append(Rj)
-		nearest_substrate.append(ns_i)
-	return (nearest_adatoms, nearest_substrate)
+		
+		d = Periodic.Distances(np.array([x, y]), nearby_adatoms)[0]
+		for j in range(len(d)):
+			if d[j] < 1.2*gv.r_a:
+				na_i.append(nearby_adatoms[2*j])
+				na_i.append(nearby_adatoms[2*j+1])
+		nearest_adatoms.append(np.array(na_i))
+		
+		d = Periodic.Distances(np.array([x, y]), nearby_substrate)[0]
+		for j in range(len(d)):
+			if d[j] < 1.2*gv.r_as:
+				ns_i.append(nearby_substrate[2*j])
+				ns_i.append(nearby_substrate[2*j+1])
+		nearest_substrate.append(np.array(ns_i))
+	return (np.array(nearest_adatoms), np.array(nearest_substrate))
