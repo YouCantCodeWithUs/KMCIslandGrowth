@@ -107,8 +107,14 @@ def RelaxEnergy(args):
 	
 	returns: float - energy at the proposed relaxed position
 	'''
-	(x, other_adatoms, substrate_bins) = args
-	return ArbitraryAdatomEnergy(x, other_adatoms) + AdatomSurfaceEnergy(x, substrate_bins)
+	(xn, substrate_bins) = args
+	xn = [np.array([xn[2*i], xn[2*i+1]]) for i in range(len(xn)/2)]
+	U = 0
+	for i in range(len(xn)):
+		Ri = xn.pop(0)
+		U += ArbitraryAdatomEnergy(Ri, xn)
+		U += AdatomSurfaceEnergy(Ri, substrate_bins)
+	return U
 
 def AdatomSurfaceForce(adatom, substrate_bins):
 	'''

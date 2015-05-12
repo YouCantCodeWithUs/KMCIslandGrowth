@@ -93,6 +93,15 @@ def DepositAdatom(adatoms, substrate_bins):
 	adatoms = LocalRelaxation(adatoms, substrate_bins, Ri)
 	return adatoms
 
+def UnzipPositions(l):
+	L = []
+	for i in l:
+		L.append(i[0]); L.append(i[1])
+	return np.array(L)
+
+def ZipPositions(l):
+	return [np.array([l[2*i], l[2*i+1]]) for i in range(len(l)/2)]
+
 def Relaxation(adatoms, substrate_bins, scale=1, threshold=1e-4):
 	'''
 	Relaxes the deposited adatoms into the lowest energy position using a conjugate gradient algorithm.
@@ -106,76 +115,52 @@ def Relaxation(adatoms, substrate_bins, scale=1, threshold=1e-4):
 	returns: np.array(np.array[x, y]) - position of adatoms with additional adatom
 	'''
 	global pool
-	backup = adatoms[:]
-	if scale > 1024:
-		if threshold > 1e-1:
-			print 'I GIVE UP'
-			sys.exit()
-		print 'GAH!', threshold*5
-		return Relaxation(backup, substrate_bins, scale=16, threshold=threshold*5)
 	# If the energy of a proposed relaxed arrangement exceeds this Ui, then halve the stepsize and start over.
 	Ui = Energy.TotalEnergy(adatoms, substrate_bins)
 	N = len(adatoms)
-	xn = adatoms[:]
-	xnp = []
+	xn = UnzipPositions(adatoms)
 	# Initial forces on each atom
-	dx0 = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
-	for i in range(N):
-		other_adatoms = xn[:]
-		other_adatoms.pop(i)
-		# Search for the lowest energy along the force vector
-		xs = [(xn[i] + a*dx0[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
-		ys = pool.map(Energy.RelaxEnergy, xs)
-		(xmin, a, a) = xs[ys.index(min(ys))]
-		xs = [(xmin - dx0[i]/10/scale + a*dx0[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
-		ys = pool.map(Energy.RelaxEnergy, xs)
-		(xmin, a, a) = xs[ys.index(min(ys))]
-		xnp.append(xmin)
+	dx0 = [Energy.AdatomAdatomForce(i, adatoms) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins) for i in range(N)]
+	dx0 = UnzipPositions(dx0)
+	xs = [(xn + a*dx0/10/scale, substrate_bins) for a in range(20)]
+	ys = pool.map(Energy.RelaxEnergy, xs)
+	(xnp, a) = xs[ys.index(min(ys))]
 	sn = dx0[:]
 	snp = dx0[:]
 	# Force on each atom in the lowest energy position
-	dxnp = [Energy.AdatomAdatomForce(i, xnp) + Energy.AdatomSurfaceForce(xnp[i], substrate_bins) for i in range(N)]
+	xnp2 = ZipPositions(xnp)
+	dxnp = [Energy.AdatomAdatomForce(i, xnp2) + Energy.AdatomSurfaceForce(xnp2[i], substrate_bins) for i in range(N)]
 	maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
+	dxnp = UnzipPositions(dxnp)
 	lastmaxF = maxF
 	while maxF > threshold:
-		for i in range(N):
-			# Calculate the conjugate direction step size, beta
-			top = np.dot(xnp[i], (xnp[i] - xn[i]))
-			bot = np.dot(xn[i], xn[i])
-			beta = top/bot
-			# Update conjugate direction
-			snp[i] = dxnp[i] + beta*sn[i]
-			
-		xn = xnp[:]
-		sn = snp[:]
+		# Calculate the conjugate direction step size, beta
+		top = np.dot(xnp, (xnp - xn))
+		bot = np.dot(xn, xn)
+		beta = top/bot
+		# Update conjugate direction
+		snp = dxnp + beta*sn
 		
-		for i in range(N):
-			other_adatoms = xn[:]
-			other_adatoms.pop(i)
-			# Calculate lowester energy position along the conjugate direction vector
-			xs = [(xn[i] + a*sn[i]/10/scale, other_adatoms, substrate_bins) for a in range(30)]
-			ys = pool.map(Energy.RelaxEnergy, xs)
-			(xmin, a, a) = xs[ys.index(min(ys))]
-			xs = [(xmin - sn[i]/10/scale + a*sn[0]/50/scale, other_adatoms, substrate_bins) for a in range(20)]
-			ys = pool.map(Energy.RelaxEnergy, xs)
-			(xmin, a, a) = xs[ys.index(min(ys))]
-			xmin = Periodic.PutInBox(xmin)
-			xnp[i] = xmin
-			if xmin[1] < -0.1 or xmin[1] > max([p[1] for p in backup])+gv.r_a*1.2:
-				# Halve the step size if things went wonky
-				print 'changing scale', scale*2, xmin
-				return Relaxation(backup, substrate_bins, scale=scale*2, threshold=threshold)
+		xn = xnp.copy()
+		sn = snp.copy()
 		
-		xn = xnp[:]
+		xs = [(xn + a*sn/10/scale, substrate_bins) for a in range(20)]
+		ys = pool.map(Energy.RelaxEnergy, xs)
+		plt.plot([np.log(y-min(ys)) for y in ys]); plt.show()
+		(xmin, a) = xs[ys.index(min(ys))]
+		xmin = [Periodic.PutInBox(x) for x in ZipPositions(xmin)]
+		xnp = UnzipPositions(xmin)
+		
 		# Calculate forces at new lowest energy position
-		dxnp = [Energy.AdatomAdatomForce(i, xn) + Energy.AdatomSurfaceForce(xn[i], substrate_bins) for i in range(N)]
+		dxnp = [Energy.AdatomAdatomForce(i, xmin) + Energy.AdatomSurfaceForce(xmin[i], substrate_bins) for i in range(N)]
 		maxF = max([np.dot(dxi, dxi) for dxi in dxnp])
-		if abs(lastmaxF - maxF) < 1e-6 or maxF > 1e4 or Energy.TotalEnergy(adatoms, substrate_bins) > Ui:
-			# Halve the step size if things went wonky
+		dxnp = UnzipPositions(dxnp)
+		# print maxF
+		if abs(lastmaxF - maxF) < 1e-6:
 			print 'changing scale', scale*2, maxF
-			return Relaxation(backup, substrate_bins, scale=scale*2, threshold=threshold)
+			return Relaxation(adatoms, substrate_bins, scale=scale*2, threshold=threshold)
 		lastmaxF = maxF
-	return xn
+	return ZipPositions(xnp)
 
 def LocalRelaxation(adatoms, substrate_bins, around):
 	'''
@@ -202,13 +187,13 @@ def LocalRelaxation(adatoms, substrate_bins, around):
 	nearby_indices = sorted(nearby_indices, reverse=True)
 	for i in nearby_indices:
 		relaxing_adatoms.append(adatoms.pop(i))
-	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins, scale=16)
+	relaxing_adatoms = Relaxation(relaxing_adatoms, substrate_bins, scale=2)
 	adatoms += relaxing_adatoms
 	forces = [Energy.AdatomAdatomForce(i, adatoms) + Energy.AdatomSurfaceForce(adatoms[i], substrate_bins) for i in range(len(adatoms))]
 	maxF = max([np.dot(f, f) for f in forces])
-	if maxF > 1e-1:
+	if maxF > 1e-3:
 		print 'global required'
-		adatoms = Relaxation(adatoms, substrate_bins, scale=16, threshold=1e-2)
+		adatoms = Relaxation(adatoms, substrate_bins, scale=2, threshold=1e-4)
 	return adatoms
 
 def HoppingRates(adatoms, substrate_bins):
@@ -302,9 +287,9 @@ substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
 
 adatoms = []
-adatoms = InitSubstrate()[:gv.W-1]
-adatoms = [adatoms[i] + np.array([gv.r_a/2, gv.r_a*gv.sqrt3/2]) for i in range(len(adatoms)-1)]
-adatoms = Relaxation(adatoms, substrate_bins, scale=16)
+# adatoms = InitSubstrate()[:gv.W-1]
+# adatoms = [adatoms[i] + np.array([gv.r_a/2, gv.r_a*gv.sqrt3/2]) for i in range(len(adatoms)-1)]
+# adatoms = Relaxation(adatoms, substrate_bins, scale=2)
 t = 0
 while True:
 	Rk = HoppingRates(adatoms, substrate_bins)
