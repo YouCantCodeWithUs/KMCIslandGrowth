@@ -42,5 +42,5 @@ nbins_y = int(np.ceil(D/bin_size))
 
 # Environmental Parameters
 boltzmann = 8.617e-5 #eV/K
-beta = 1.0/300/boltzmann/2 # 1/eV
+beta = 1.0/300/boltzmann/4 # 1/eV
 deposition_rate = 1.0

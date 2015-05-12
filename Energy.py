@@ -52,7 +52,7 @@ def PairwiseForces(Ri, Rjs, E_ij, r_ij):
 	r_mags = [np.sqrt(r_mags[2*j] + r_mags[2*j+1]) for j in range(len(r_mags)/2)]
 	F = np.array([0., 0.])
 	for i in range(len(r_mags)):
-		if r_mags[i] == 0:
+		if r_mags[i] < 1e-2:
 			continue
 		f = E_ij*(-12*r_ij**12/r_mags[i]**13 + 12*r_ij**6/r_mags[i]**7)
 		F[0] += r_vecs[2*i]/r_mags[i]*f
@@ -167,33 +167,39 @@ def ArbitraryAdatomForce(Ri, adatoms):
 	nearby_adatoms = Bins.NearbyAtoms(Ri, adatoms)
 	return sum([PairwiseForce(Ri, Rj, gv.E_a, gv.r_a) for Rj in nearby_adatoms])
 
+def HoppingEnergy(pos, adatoms, substrate_bins):
+	nearby_substrate = Bins.NearbyAtoms(pos[0], pos[1], substrate_bins)
+	return sum(PairwisePotentials(pos, adatoms, gv.E_a, gv.r_a)) + sum(PairwisePotentials(pos, nearby_substrate, gv.E_as, gv.r_as))
+
 def U_appx(i, adatoms, substrate_bins):
 	'''
 	Energy required to remove an adatom.
 	'''
-	Ri = adatoms[i]
-	Uappx = AdatomSurfaceEnergy(Ri, substrate_bins) + AdatomAdatomEnergy(i, adatoms)
-	return Uappx
+	
+	Ri = adatoms[2*i:2*i+2]
+	nearby_substrate = Bins.NearbyAtoms(Ri[0], Ri[1], substrate_bins)
+	return sum(PairwisePotentials(Ri, adatoms, gv.E_a, gv.r_a)) + sum(PairwisePotentials(Ri, nearby_substrate, gv.E_as, gv.r_as))
 
 def U_loc(i, adatoms, substrate_bins):
 	'''
 	Energy of an adatom's nearest neighbor bonds in situ.
 	'''
-	Ri = adatoms[i]
+	
+	Ri = adatoms[2*i:2*i+2]
 	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins)
 	nearest_adatoms = nearest_adatoms[i]
 	nearest_substrate = nearest_substrate[i]
-	return AdatomAdatomEnergy(0, [Ri] + nearest_adatoms) + AdatomSurfaceSubsetEnergy(Ri, nearest_substrate)
+	return sum(PairwisePotentials(Ri, nearest_adatoms, gv.E_a, gv.r_a)) + sum(PairwisePotentials(Ri, nearest_substrate, gv.E_as, gv.r_as))
 
 def U_loc_ideal(i, adatoms, substrate_bins):
 	'''
 	Energy of an adatom's nearest neighbor bonds in an ideal lattice.
 	'''
-	Ri = adatoms[i]
+	Ri = adatoms[2*i:2*i+2]
 	(nearest_adatoms, nearest_substrate) = Bins.NearestNeighbors(adatoms, substrate_bins)
 	nearest_adatoms = nearest_adatoms[i]
 	nearest_substrate = nearest_substrate[i]
-	return -(len(nearest_adatoms)*gv.E_a + len(nearest_substrate)*gv.E_as)
+	return -(len(nearest_adatoms)/2*gv.E_a + len(nearest_substrate)/2*gv.E_as)
 
 def C():
 	'''
