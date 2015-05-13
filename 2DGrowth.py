@@ -13,7 +13,7 @@ import Periodic
 import Bins
 import Energy
 
-pool = Pool(2)
+pool = Pool(1)
 
 def InitSubstrate():
 	'''
@@ -94,7 +94,7 @@ def DepositAdatom(adatoms, substrate_bins):
 	adatoms = Relaxation(adatoms, substrate_bins)
 	return adatoms
 
-def Relaxation(adatoms, substrate_bins, scale=16, threshold=1e-3):
+def Relaxation(adatoms, substrate_bins, scale=16, threshold=1e-4):
 	'''
 	Relaxes the deposited adatoms into the lowest energy position using a conjugate gradient algorithm.
 	Runs recursively if the step size is too small.
@@ -288,17 +288,31 @@ def PlotEnergy(adatoms, substrate_bins):
 	plt.savefig(gv.folder + 'E%.2i.png'%t)
 	plt.clf()
 
+def PlotStresses(adatoms, substrate, substrate_bins):
+	PlotAtoms(substrate, 'blue')
+	Fs = Energy.AdatomAdatomForces(adatoms) + Energy.AdatomSubstrateForces(adatoms, substrate_bins)
+	Fs = [np.sqrt(Fs[2*i]**2 + Fs[2*i+1]**2) for i in range(len(Fs)/2)]
+	Fs = [np.log(f*1e4) for f in Fs]
+	Fs = ['#e7%.2x%.2x'%(max(0, min(255, f*8+79)), max(0, min(255, f*8+53))) for f in Fs]
+	
+	for i in range(len(Fs)):
+		PlotAtoms(adatoms[2*i:2*i+2], Fs[i])
+	plt.axis([-gv.L/2, gv.L/2, gv.Dmin, gv.Dmax])
+
+def average(l):
+	return sum(l)/len(l)
+
 substrate = InitSubstrate()
 substrate_bins = Bins.PutInBins(substrate)
 
 surf_substrate = SurfaceAtoms(substrate, substrate_bins)
 
 adatoms = np.array([])
-adatoms = InitSubstrate()[:gv.W*2]
-for i in range(len(adatoms)/2):
-	adatoms[2*i] -= gv.r_a/2
-	adatoms[2*i+1] += gv.r_a*gv.sqrt3/2
-adatoms = Relaxation(adatoms, substrate_bins)
+# adatoms = InitSubstrate()[:gv.W*4]
+# for i in range(len(adatoms)/2):
+	# adatoms[2*i] -= gv.r_a/2
+	# adatoms[2*i+1] += gv.r_a*gv.sqrt3
+# adatoms = Relaxation(adatoms, substrate_bins)
 t = 0
 while True:
 	Rk = HoppingRates(adatoms, substrate_bins)
@@ -313,7 +327,7 @@ while True:
 		adatoms = HopAtom(pj.index(HoppingAtom[0])-1, adatoms, substrate_bins)
 	else:
 		adatoms = DepositAdatom(adatoms, substrate_bins)
-
+	
 	# if i % 5 == 0:
 	PlotSubstrate(substrate, 'blue')
 	PlotAtoms(adatoms, 'green')
@@ -323,6 +337,8 @@ while True:
 	plt.savefig(gv.folder + '%.2i.png'%t)
 	# plt.show()
 	plt.clf()
+	PlotStresses(adatoms, substrate, substrate_bins)
+	plt.savefig(gv.folder + 'F%.2i.png'%t)
 	# PlotEnergy(adatoms, substrate_bins)
 	t += 1
 
