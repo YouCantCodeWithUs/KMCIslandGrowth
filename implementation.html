@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
+	<!--[if lte IE 8]>
+        <link rel="stylesheet" href="css/layouts/side-menu-old-ie.css">
+    <![endif]-->
+    <!--[if gt IE 8]><!-->
+        <link rel="stylesheet" href="css/layouts/side-menu.css">
+    <!--<![endif]-->
+    <link rel="stylesheet" href="css/overrides.css">
+	<title>Kinetic Monte Carlo Island Growth | Introduction</title>
+</head>
+<body>
+	
+	<div id="layout">
+		<a href="#" id="menuLink" class="menu-link">
+			<!-- HAMBURGER -->
+			<span></span>
+		</a>
+		
+		<div id="menu">
+			<div class="pure-menu">
+				<a class="pure-menu-heading" href="#">YCCWU</a>
+				<ul class="pure-menu-list">
+					<li class="pure-menu-item"><a href="index.html" class="pure-menu-link">Home</a></li>
+	                <li class="pure-menu-item"><a href="intro.html" class="pure-menu-link">Introduction</a></li>
+	                <li class="pure-menu-item"><a href="methods.html" class="pure-menu-link">Methods</a></li>
+	                <li class="pure-menu-item pure-menu-selected"><a href="implementation.html" class="pure-menu-link">Implementation</a></li>
+	                <li class="pure-menu-item"><a href="results.html" class="pure-menu-link">Results</a></li>
+	            </ul>
+			</div>
+		</div>
+		
+		<div id="main">
+			<div class="header">
+				<h1>Implementation</h1>
+			</div>
+			<div class="content">
+				
+				<h2 id="initialization">Initialization</h2>
+
+				<p>Our system is based on a face-centered cubic (FCC) crystal structure.
+				This lends itself well to metallic films and substrates like Cu, Ni, Ag,
+				Au , or Al. It can easily be extended to Si and GaAs. We begin by
+				initializing a 2D hexagonal lattice with horizontally periodic boundary
+				conditions. The outward facing plane is (111), and atoms are deposited
+				on the (110) surface. A 2-dimensional system will allow us to
+				effectively observe the strain-induced formation of dislocation and
+				islands in a reasonable amount of time.</p>
+				
+				<p>Atoms are grouped by position into boxes of size <span class="math">\(3r_{m}\)</span> in order to
+				facilitate truncation of the Lennard-Jones potential. Only atoms in the
+				boxes neighboring the atom of interest will be included in potential
+				energy calculations. For <span class="math">\(r_{ij}>3r_{m},\, U_{ij}\)</span> is within
+				<span class="math">\(0.003 \, \varepsilon_{ij}\)</span> of zero, so this saves a significant amount
+				of computation time with very minimal sacrifice of accuracy. Figure
+				1 shows the (111) plane of the binned
+				substrate with the first deposited atom on top. In order to avoid
+				additional interfacial diffusion effects, we only allow the top layer of
+				substrate atoms to move. Since there are no surface atoms in the very
+				beginning, it is assumed that the deposition probability is 1. The first
+				atom is just deposited randomly and relaxed into position without any
+				additional rate calculations.</p>
+				
+				<figure>
+				<img class="pure-img-responsive" src="img/Substrate.png" alt="Substrate atoms (blue) and first deposited adatom (red) binned into
+				boxes of dimension $3\sigma.$ X and Y axes indicate x and y position.
+				Each layer is made up of 18 atoms.
+				" />
+				<figcaption>Figure 1. Substrate atoms (blue) and first deposited adatom (red) binned into
+				boxes of dimension <span class="math">\(3\sigma.\)</span> X and Y axes indicate x and y position.
+				Each layer is made up of 18 atoms.</figcaption>
+				</figure>
+				
+				<h2 id="algorithm:">Algorithm:</h2>
+				
+				<p>The growth algorithm can be summarized in the following block diagram:</p>
+				
+				<figure>
+				<img class="pure-img-responsive" src="img/Algorithm.png" alt="image" />
+				</figure>
+				
+				<h3 id="identificationofsurfaceatoms">Identification of Surface Atoms</h3>
+				
+				<p>Surface atoms are defined as any adatom that is coordinated by less than
+				five nearest neighbors. As afore stated, substrate atoms are excluded
+				from this list. Surface atoms are indicated by red dots in our figures.
+				Fully coordinated atoms have six nearest neighbors, and are indicated by
+				green dots.</p>
+				
+				<h3 id="determininghoppingrates">Determining Hopping Rates</h3>
+				
+				<p>For each identified surface atom, the hopping rate is calculated as in
+				Equation [eq:3]. We set the attempt frequency, <span class="math">\(\omega,\)</span> equal to the
+				rate of unhindered diffusion for a surface atom on a lattice:
+				approximately <span class="math">\(10^{12}s^{-1}.\)</span> <span class="math">\(k_{B}=8.617\times10^{-5}eV/K\)</span>.
+				Temperature may be varied.</p>
+				
+				<p>It was mentioned that <span class="math">\(\Delta U\)</span> would be approximated by a
+				pseudo-bond-counting method:</p>
+				
+				<p><span class="math">\[\Delta U=\Delta U_{approx}-(\Delta U_{loc}-\Delta U_{loc}^{ideal})\]</span></p>
+				
+				<p>where$\Delta U_{approx}$ is the energy needed to completely remove an
+				atom from its current configuration. This is calculated by summing the
+				Lennard Jones potential over all the atoms in adjacent bins.
+				<span class="math">\(\Delta U_{loc}^{ideal}\)</span> would be equivalent to the sum of the ideal
+				energies in each of the local (nearest neighbor) bonds. For a surface
+				atom coordinated by <span class="math">\(N_{s}\)</span> nearest substrate neighbors and <span class="math">\(N_{a}\)</span>
+				nearest adatom neighbors,</p>
+				
+				<p><span class="math">\[\Delta U_{loc}^{ideal}=-(\varepsilon_{a-s}N_{s}+\varepsilon_{a}N_{a})\]</span></p>
+				
+				<p>On the other hand, <span class="math">\(\Delta U_{loc}\)</span> is the <em>actual</em> energy stored in the
+				local bonds. It is calculated by summing the Lennard Jones potential
+				over nearest neighbor atoms only. Therefore, the quantity
+				<span class="math">\((\Delta U_{loc}-\Delta U_{loc}^{ideal})\)</span> accounts for lattice strain
+				energy. For a relaxed homoepitaxial system,
+				<span class="math">\(\Delta U\approxeq\Delta U_{approx}\)</span>.</p>
+				
+				<h3 id="totalrateandchoosinganevent">Total Rate and Choosing an Event</h3>
+				
+				<p>Once the hopping rates are computed for all N surface atoms, the partial
+				sums</p>
+				
+				<p><span class="math">\[p_{j}=\sum_{i=1}^{j}r_{i}\]</span></p>
+				
+				<p>should be computed and stored. This yields a continuum of N hopping
+				probabilities like the ones labeled in Figure [fig:Graphic-depiction-of]
+				for N=3. The total rate is given as in ([eq:2]).</p>
+				
+				<p>To choose an event, a random number <span class="math">\(u\in(0,R_{total})\)</span> is selected from
+				a uniform distribution. If </p>
+				
+				<p><span class="math">\[\begin{cases}u < p_{j}, & \mathrm{Hop \, atom \, j}\\ u > p_{N}, & \mathrm{Deposit \, an \, atom}\end{cases}\]</span></p>
+				
+				<h3 id="hopping">Hopping</h3>
+				
+				<p>If an atom is chosen to hop, one surface atom is chosen at random from
+				the adjacent bins. The potential, U(x), is then calculated at each of
+				the 6 positions coordinating the chosen atom. The hopping atom moves to
+				the position with the lowest energy. Finally, a local relaxation is
+				performed around the destination using the nonlinear conjugate gradient
+				method. </p>
+				
+				<h3 id="deposition">Deposition</h3>
+				
+				<p>If deposition is chosen, a random position is chosen within the bounds
+				of the maximum film height and width. This position could end up being
+				10 layers above the surface, which would take a long time to relax. To
+				accomodate this possibility, the adatom is moved down by <span class="math">\(r_{a}\)</span> every
+				time it finds itself more than <span class="math">\(2r_{a}\)</span> away from any other atoms. When
+				it is finally within range, a local relaxation is performed using the
+				nonlinear conjugate gradient method. </p>
+				
+				<h3 id="localvsglobalrelaxations">Local vs Global Relaxations</h3>
+				
+				<p>Relaxations using the nonlinear conjugate gradient method are performed
+				to find the minimum energy positions of particles after hopping or
+				deposition events. A local relaxation of just the atoms within
+				<span class="math">\(3 \, r_m\)</span> of where the event occurred should be sufficient to find a
+				new local minimum energy configuration within the threshold force value
+				discussed previously. If the local relaxation causes atoms to move
+				outside of this radius or causes atoms outside of the relaxation scope
+				to experience forces greater than the threshold, then a global
+				relaxation of all atoms is performed. Additionally, if the change in
+				force from step to step is too small the the relaxation has lost
+				conjugacy. In this case, the step size of the line search is halved and
+				the relaxation step is performed again from the beginning. Our
+				implementation of the local relaxation process was unstable, so only
+				global relaxations were performed. Although this dramatically increased
+				the computation time required for each step, it helped prevent forces
+				from becoming too large.</p>
+				
+			</div>
+		</div>
+	</div>
+	
+<script src="js/ui.js"></script>
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</body>

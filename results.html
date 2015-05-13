@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css">
+	<!--[if lte IE 8]>
+        <link rel="stylesheet" href="css/layouts/side-menu-old-ie.css">
+    <![endif]-->
+    <!--[if gt IE 8]><!-->
+        <link rel="stylesheet" href="css/layouts/side-menu.css">
+    <!--<![endif]-->
+    <link rel="stylesheet" href="css/overrides.css">
+	<title>Kinetic Monte Carlo Island Growth | Introduction</title>
+</head>
+<body>
+	
+	<div id="layout">
+		<a href="#" id="menuLink" class="menu-link">
+			<!-- HAMBURGER -->
+			<span></span>
+		</a>
+		
+		<div id="menu">
+			<div class="pure-menu">
+				<a class="pure-menu-heading" href="#">YCCWU</a>
+				<ul class="pure-menu-list">
+					<li class="pure-menu-item"><a href="index.html" class="pure-menu-link">Home</a></li>
+	                <li class="pure-menu-item"><a href="intro.html" class="pure-menu-link">Introduction</a></li>
+	                <li class="pure-menu-item"><a href="methods.html" class="pure-menu-link">Methods</a></li>
+	                <li class="pure-menu-item"><a href="implementation.html" class="pure-menu-link">Implementation</a></li>
+	                <li class="pure-menu-item pure-menu-selected"><a href="results.html" class="pure-menu-link">Results</a></li>
+	            </ul>
+			</div>
+		</div>
+		
+		<div id="main">
+			<div class="header">
+				<h1>Results</h1>
+			</div>
+			<div class="content">
+				
+				<p>Currently, we are able to work with just about 30 atoms before issues
+				with the nonlinear conjugate gradient algorithm implementation prevent
+				our atoms from settling into a local minimum energy configuration. Due
+				to this bug, we sometimes allowed the first layer of substrate to
+				diffuse so we had more atoms to observe.</p>
+				
+				<p>Nevertheless, we were able to learn a lot from just a few rough layers.
+				Figure 1 shows the progression of homoepitaxial
+				film growth over 14 steps, beginning with 18 diffusion-enabled substrate
+				atoms. We first set the lattice parameters and bond energies equal to
+				prove the concept of off-lattice KMC. It was observed that atoms were
+				preferentially deposited over the first five steps, and hopping was
+				finally chosen at step 6. After that, hopping began to dominate over
+				deposition. This demonstrates the desired effect of the rate-equation
+				KMC model; surface diffusion occurs on the order of <span class="math">\(10^{12} s^{-1}\)</span>
+				while deposition in a region as small as this might only occur at
+				<span class="math">\(10 s^{-1}\)</span>. A surface atom in a monolayer has four nearest neighbor
+				bonds, therefore there is a large activation energy barrier to move to a
+				site with only one or two bonds. By equation [eq:1], the calculated
+				hopping rate would be very small, and therefore the n-fold method is
+				very likely to choose deposition. But once there are more surface atoms
+				hanging around – some with few bonds and very low activation energies –
+				the hopping probability increases significantly. The more surface atoms,
+				the more hopping dominates until they all form bonds with each other and
+				deposition is favored once again.</p>
+				
+				<figure>
+				<div class="pure-g">
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/05.png" /> </div>
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/06.png" /> </div>
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/14.png" /> </div>
+				</div>
+				<figcaption>Figure 1. Progression of film growth over 14 steps. When a surface atom (red)
+				becomes coordinated by 5+ other adatoms, it is colored green. a) Step 4:
+				Only deposition has been chosen. b) Step 9: Some atoms have begun to
+				hop. c) Step 14: Deposition and hopping are roughly equally common.</figcaption>
+				</figure>
+				
+				<p>In one run with the homoepitaxial parameters, we observed the process of
+				vacancy formation. The vacancy in Figure 2 is circled
+				in orange. This was the result of random deposition events. Because of
+				the process described in 4.2.5, atoms are rarely deposited directly onto
+				the surface. Instead, they are gradually shifted down from above until
+				they are close enough to be acted upon by the nonlinear conjugate
+				gradient. They settle in the first configuration that is energetically
+				favorable, which is not necessarily the close-packed configuration. It
+				is probable that this vacancy would diffuse and/or disappear over time.</p>
+				
+				<figure>
+				<img class="pure-img-responsive" src="img/17-vacancy.png" alt="Formation of a vacancy, circled in
+				orange." />
+				<figcaption>Figure 2. Formation of a vacancy, circled in
+				orange.[fig:Void-formation]</figcaption>
+				</figure>
+				
+				<p>When attempting to simulate heteroepitaxy, we were obliged to induce
+				very large lattice misfit. Otherwise, due to bugs, we would not create
+				enough layers to observe dislocation formation. The silver-on-copper
+				system has an 18.5% misfit, which was theorized to form dislocations at
+				the very first layer (the VM growth mode). Results are shown in Figure
+				3. In this case, we did not allow the substrate
+				atoms to diffuse. It was observed that adatoms deposited far from other
+				adatoms were nicely centered between the substrate atoms below, but the
+				introduction of a nearby adatom forced both of them off-center of the
+				lattice site. In [fig:Copper-and-Silver,], an attempt to deposit an
+				adatom between two existing adatoms resulted in the beginnings of a
+				dislocation. It found a lower energy position just above the first layer
+				plane. As more adatoms were deposited nearby, the dislocation became
+				incorporated into the lattice.</p>
+				
+				<figure>
+				<div class="pure-g">
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/12.png" /> </div>
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/16.png" /> </div>
+					<div class="pure-u-1-3"> <img class="pure-img-responsive" src="img/17.png" /> </div>
+				</div>
+				<figcaption>Figure 3. Copper on Silver. Lattice parameters are 2.7 and 3.2, respectively.
+				Shows progression of heteroepitaxial growth over 17 steps, featuring
+				dislocation formation. Dislocation cores are marked by upside-down
+				orange Ts, and circled for emphasis.</figcaption>
+				</figure>
+				
+				<p>As mentioned, future work is required to simulate more than about 30
+				atoms. Our current implementation often fails to find a local minimum
+				energy configuration if the number of mobile atoms is too high. The
+				forces on each atom are above the threshold value of <span class="math">\(10^{-2}\)</span> eV /
+				<span class="math">\(\buildrel _\circ \over {\mathrm{A}}\)</span> and fails to converge. The
+				calculations themselves are clearly working, as small numbers of atoms
+				easily find the minimum energy configuration. Perhaps another formalism
+				for the conjugate step size would be more appropriate for this problem.</p>
+				
+				<p>Images of other results can be found on <a href="https://github.com/YouCantCodeWithUs/KMCIslandGrowth/tree/master/_Images">GitHub</a>.</p>
+				
+			</div>
+		</div>
+	</div>
+	
+<script src="js/ui.js"></script>
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</body>
