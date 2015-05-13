@@ -1,22 +1,35 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 
+import sys
 import numpy as np
 
+if len(sys.argv) > 1:
+	E_a = float(sys.argv[1])
+	E_s = float(sys.argv[2])
+	r_a = float(sys.argv[3])
+	r_s = float(sys.argv[4])
+	W = int(sys.argv[5])
+	folder = sys.argv[6]
+else:
+	# Constants
+	E_a = 2.083 # eV, Cu-Cu
+	E_s = 2.083 # eV, Cu-Cu
+	# r_a and r_s have to be scaled for the orientation being used? also, not the lattice parameters.
+	# should be divided by sqrt2
+	r_a = 2.7 # angstroms Cu
+	r_s = 2.7 # angstroms Cu
+	folder = '_Images/'
+	
+	# Box Parameters
+	W = 18
+
 # Constants
-E_a = 1.688 # eV, Ag-Ag
-E_s = 2.083 # eV, Cu-Cu
-# r_a and r_s have to be scaled for the orientation being used? also, not the lattice parameters.
-# should be divided by sqrt2
-# also don't use this for sigma. use r_m formula on wiki.
-r_a = 3.2 # angstroms Ag
-r_s = 2.7 # angstroms Cu
 E_as = np.sqrt(E_a*E_s)
 r_as = (r_a+r_s)/2
 sqrt3 = np.sqrt(3)
 
 # Box Parameters
-W = 18
 Hs = 10
 Ha = 10
 L = W*r_s
@@ -29,5 +42,5 @@ nbins_y = int(np.ceil(D/bin_size))
 
 # Environmental Parameters
 boltzmann = 8.617e-5 #eV/K
-beta = 1.0/300/boltzmann/6 # 1/eV
+beta = 1.0/300/boltzmann/4 # 1/eV
 deposition_rate = 1.0
